@@ -23,3 +23,13 @@ u4 read_u4(FILE *class_file) {
         | ((u4)read_u1(class_file) << 8) 
         | (u4)read_u1(class_file);
 }
+
+u1 *read_bytes(FILE *class_file, u4 len) {
+    if(len == 0) return NULL;
+    u1 *bytes = malloc(len);
+    if (fread(bytes, 1, len, class_file) != len) {
+        fprintf(stderr, "read_bytes failed\n");
+        exit(1);
+    }
+    return bytes;
+}

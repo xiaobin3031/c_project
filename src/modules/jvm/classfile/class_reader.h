@@ -2,6 +2,7 @@
 
 #include "../utils/bytes.h"
 #include "method_info.h"
+#include "field.h"
 
 typedef struct {
     u4 magic;
@@ -15,12 +16,11 @@ typedef struct {
     u2 interface_count;
     // u2 **interfaces;
     u2 fields_count;
-    // field_info **fields;
+    field_t **fields;
     u2 methods_count;
     method_t **methods;
-    // method_info **methods;
     u2 attributes_count;
-    // attribute_info **attributes;
+    void **attributes;
 } class_t;
 
 
