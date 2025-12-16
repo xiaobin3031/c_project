@@ -1,0 +1,1 @@
+javac -g:none Main.java
