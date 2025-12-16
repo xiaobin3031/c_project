@@ -19,7 +19,7 @@ add_subdirectory(src/core)
 # 可以通过 -DMODULE=xxx 指定只编译某个模块
 # 如果没指定，则编译所有模块
 # --------------------------
-set(ALL_MODULES shentou)
+set(ALL_MODULES shentou jvm)
 if(DEFINED MODULE)
     message(STATUS "Building only module: ${MODULE}")
     if(NOT ${MODULE} IN_LIST ALL_MODULES)
