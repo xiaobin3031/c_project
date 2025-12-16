@@ -1,5 +1,6 @@
 #include "class_reader.h"
 #include "../utils/bytes.h"
+#include "constant_pool.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -16,6 +17,8 @@ class_t *read_class_file(const char *path) {
     class->magic = read_u4(class_file);
     class->minor_version = read_u2(class_file);
     class->major_version = read_u2(class_file);
+    class->constant_pool_count = read_u2(class_file);
+    class->cp_pools = read_constant_pool(class_file, class->constant_pool_count);
 
     fclose(class_file);
 
@@ -29,6 +32,7 @@ class_t *read_class_file(const char *path) {
 
 void class_free(class_t *class) {
     if(class) {
+        free(class->cp_pools);
         free(class);
     }
 }
