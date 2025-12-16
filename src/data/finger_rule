@@ -1,0 +1,33 @@
+# service|protocol|match_strings|version_regexp
+http|http|HTTP/,Server:|Server: ([^ ]+)
+https|https|HTTP/,Server:|Server: ([^ ]+)
+openssh|ssh|SSH-|SSH-[0-9.]+-([A-Za-z0-9._]+)
+dropbear|ssh|Dropbear-|Dropbear_([0-9.]+)
+vsftpd|ftp|220 vsftpd|220 vsftpd ([0-9.]+)
+proftpd|ftp|220 ProFTPD|220 ProFTPD ([0-9.]+)
+pure-ftpd|ftp|220 Pure-FTPd|220 Pure-FTPd ([0-9.]+)
+smtp|smtp|220,SMTP|
+exim|smtp|220 Exim|220 Exim ([0-9.]+)
+postfix|smtp|220 Postfix|220 Postfix ([0-9.]+)
+redis|redis|-ERR,-NOAUTH,+PONG|
+memcached|memcached|STAT|STAT
+mysql|mysql|mysql_native_password,MySQL|
+mariadb|mysql|MariaDB|MariaDB ([0-9.]+)
+mongodb|mongodb|MongoDB|MongoDB ([0-9.]+)
+postgresql|postgres|PostgreSQL|PostgreSQL ([0-9.]+)
+telnet|telnet|telnet|
+snmp|snmp|SNMP|SNMP
+ldap|ldap|LDAP|LDAP
+dns|dns|;; opcode: QUERY|;; opcode: QUERY
+http-proxy|http|CONNECT|CONNECT
+nginx|http|Server: nginx|nginx/([0-9.]+)
+apache|http|Server: Apache|Apache/([0-9.]+)
+iis|http|Server: Microsoft-IIS|Microsoft-IIS ([0-9.]+)
+tomcat|http|Server: Apache-Coyote|Apache-Coyote/([0-9.]+)
+nodejs|http|Server: Node.js|Node.js/([0-9.]+)
+php|http|X-Powered-By: PHP|PHP/([0-9.]+)
+java|http|X-Powered-By: Servlet|Servlet/([0-9.]+)
+couchdb|http|Apache CouchDB|CouchDB ([0-9.]+)
+elasticsearch|http|Elasticsearch|Elasticsearch ([0-9.]+)
+rabbitmq|http|Server: RabbitMQ|RabbitMQ ([0-9.]+)
+juice-shop|http|HTTP/,X-Recruiting: /#/jobs|
