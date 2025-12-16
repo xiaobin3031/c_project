@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
+#include "method_info.h"
 
 typedef struct {
     u4 magic;
@@ -16,6 +17,7 @@ typedef struct {
     u2 fields_count;
     // field_info **fields;
     u2 methods_count;
+    method_t **methods;
     // method_info **methods;
     u2 attributes_count;
     // attribute_info **attributes;
