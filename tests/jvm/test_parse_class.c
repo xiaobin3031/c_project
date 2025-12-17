@@ -1,8 +1,10 @@
 #include "../test_runner.h"
 #include "../../src/modules/jvm/classfile/class_reader.h"
 #include "../../src/modules/jvm/classfile/constant_pool.h"
+#include <string.h>
 
 int test_parse_class() {
+    int result = FAILURE;
     class_t *class = read_class_file("../src/data/jvm/Main.class");
     ASSERT_TRUE(class != NULL, "test class file not null");
     ASSERT_EQ(0xCAFEBABE, class->magic, "test class magic CAFEBABE");
@@ -12,6 +14,15 @@ int test_parse_class() {
     print_class_name(class->cp_pools, class->constant_pool_count);
     print_method_name(class->cp_pools, class->constant_pool_count);
 
+    ASSERT_TRUE(class->methods != NULL, "test class methods not null");
+    for(int i=0;i<class->methods_count;i++){
+        method_t *method = class->methods[i];
+        char *method_name = get_utf8(class->cp_pools[method->name_index]);
+        if(strcmp(method_name, "main") == 0) {
+            printf("`main` method found\n");
+            break;
+        }
+    }
 
     class_free(class);
     return SUCCESS;

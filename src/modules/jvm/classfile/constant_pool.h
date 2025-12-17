@@ -57,6 +57,10 @@ typedef struct {
     u2 name_and_type_index;
 } cp_fieldref_t;
 
+
+int is_cp_info_tag(void *cp_info, u1 special_tag);
+void check_cp_info_tag(void *cp_info, u1 special_tag);
+
 void **read_constant_pool(FILE *file, u2 pool_size);
 
 char *get_utf8(void *cp_info);

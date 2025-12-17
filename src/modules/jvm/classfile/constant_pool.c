@@ -7,15 +7,17 @@
 
 
 
-static int is_cp_info_tag(void *cp_info, u1 special_tag) {
+int is_cp_info_tag(void *cp_info, u1 special_tag) {
     if(!cp_info) return 0;
+
     u1 tag = (u1)*((char *)cp_info);
     return tag == special_tag ? 1 : 0;
 }
 
-static void check_cp_info_tag(void *cp_info, u1 special_tag) {
+void check_cp_info_tag(void *cp_info, u1 special_tag) {
     if(!is_cp_info_tag(cp_info, special_tag)) {
-        perror("tag not match");
+        u1 tag = (u1)*((char *)cp_info);
+        fprintf(stderr, "tag not match, expect %d, but got %d\n", special_tag, tag);
         exit(1);
     }
 }

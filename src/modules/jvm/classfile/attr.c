@@ -40,6 +40,10 @@ void **read_attributes(FILE *file, u2 attr_count, void **cp_pools) {
             }
             attrs[i] = code;
         }
+        else {
+            printf("unknown attribute %s\n", attr_name);
+            exit(1);
+        }
     }
     return attrs;
 }
