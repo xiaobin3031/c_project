@@ -9,10 +9,10 @@ typedef struct frame_t frame_t;
 struct frame_t {
     int *local_vars;
     int *operand_stack;
-    int sp;
+    u2 sp;
     u4 code_length;
     u1 *code;
-    int pc;
+    u4 pc;
 
     frame_t *invoker;
 };

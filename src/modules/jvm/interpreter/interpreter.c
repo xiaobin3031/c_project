@@ -7,6 +7,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+
+static int pop(frame_t *frame) {
+    return frame->operand_stack[frame->sp--];
+}
+static void push(frame_t *frame, int v) {
+    frame->operand_stack[++frame->sp] = v;
+}
+static u1 read_code(frame_t *frame) {
+    return frame->code[frame->pc++];
+}
 
 method_t *find_method(class_t *class, void *info) {
     check_cp_info_tag(info, CONSTANT_Methodref);
@@ -42,7 +53,7 @@ frame_t *create_frame(method_t *method, frame_t *invoker) {
             index--;
         }
         for(int i=index;i>=0;i--) {
-            frame->local_vars[i] = invoker->operand_stack[invoker->sp--];
+            frame->local_vars[i] = pop(invoker);
         }
     }
     return frame;
@@ -55,40 +66,112 @@ void interpret(frame_t *frame, class_t *class) {
     void **cp_pools = class->cp_pools;
 
     while(frame->pc < frame->code_length) {
-        opcode = frame->code[frame->pc++];
+        opcode = read_code(frame);
         switch(opcode) {
             case OPCODE_iconst_1:
-                frame->operand_stack[++frame->sp] = 1;
+                push(frame, 1);
                 break;
             case OPCODE_iconst_2:
-                frame->operand_stack[++frame->sp] = 2;
+                push(frame, 2);
                 break;
             case OPCODE_istore_1:
-                frame->local_vars[1] = frame->operand_stack[frame->sp--];
+                frame->local_vars[1] = pop(frame);
                 break;
             case OPCODE_istore_2:
-                frame->local_vars[2] = frame->operand_stack[frame->sp--];
+                frame->local_vars[2] = pop(frame);
                 break;
             case OPCODE_istore_3:
-                frame->local_vars[3] = frame->operand_stack[frame->sp--];
+                frame->local_vars[3] = pop(frame);
                 break;
             case OPCODE_iload_0:
-                frame->operand_stack[++frame->sp] = frame->local_vars[0];
+                push(frame, frame->local_vars[0]);
                 break;
             case OPCODE_iload_1:
-                frame->operand_stack[++frame->sp] = frame->local_vars[1];
+                push(frame, frame->local_vars[1]);
                 break;
             case OPCODE_iload_2:
-                frame->operand_stack[++frame->sp] = frame->local_vars[2];
+                push(frame, frame->local_vars[2]);
                 break;
             case OPCODE_iload_3: 
-                frame->operand_stack[++frame->sp] = frame->local_vars[3];
+                push(frame, frame->local_vars[3]);
                 break;
             case OPCODE_iadd: {
-                int v2 = frame->operand_stack[frame->sp--];
-                int v1 = frame->operand_stack[frame->sp--];
+                int v2 = pop(frame);
+                int v1 = pop(frame);
                 int r = v1 + v2;
-                frame->operand_stack[++frame->sp] = r;
+                push(frame, r);
+                break;
+            }
+            case OPCODE_if_icmpeq: {
+                int v2 = pop(frame);
+                int v1 = pop(frame);
+                if(v1 == v2) {
+                    u4 store_pc = frame->pc - 1;
+                    int8_t bb1 = read_code(frame);
+                    int8_t bb2 = read_code(frame);
+                    int16_t index = (bb1 << 8) | bb2;
+                    frame->pc = store_pc + index;
+                }
+                break;
+            }
+            case OPCODE_if_icmpne: {
+                int v2 = pop(frame);
+                int v1 = pop(frame);
+                if(v1 != v2) {
+                    u4 store_pc = frame->pc - 1;
+                    int8_t bb1 = read_code(frame);
+                    int8_t bb2 = read_code(frame);
+                    int16_t index = (bb1 << 8) | bb2;
+                    frame->pc = store_pc + index;
+                }
+                break;
+            }
+            case OPCODE_if_icmplt: {
+                int v2 = pop(frame);
+                int v1 = pop(frame);
+                if(v1 < v2) {
+                    u4 store_pc = frame->pc - 1;
+                    int8_t bb1 = read_code(frame);
+                    int8_t bb2 = read_code(frame);
+                    int16_t index = (bb1 << 8) | bb2;
+                    frame->pc = store_pc + index;
+                }
+                break;
+            }
+            case OPCODE_if_icmpge: {
+                int v2 = pop(frame);
+                int v1 = pop(frame);
+                if(v1 >= v2) {
+                    u4 store_pc = frame->pc - 1;
+                    int8_t bb1 = read_code(frame);
+                    int8_t bb2 = read_code(frame);
+                    int16_t index = (bb1 << 8) | bb2;
+                    frame->pc = store_pc + index;
+                }
+                break;
+            }
+            case OPCODE_if_icmpgt: {
+                int v2 = pop(frame);
+                int v1 = pop(frame);
+                if(v1 > v2) {
+                    u4 store_pc = frame->pc - 1;
+                    int8_t bb1 = read_code(frame);
+                    int8_t bb2 = read_code(frame);
+                    int16_t index = (bb1 << 8) | bb2;
+                    frame->pc = store_pc + index;
+                }
+                break;
+            }
+            case OPCODE_if_icmple: {
+                int v2 = pop(frame);
+                int v1 = pop(frame);
+                if(v1 <= v2) {
+                    u4 store_pc = frame->pc - 1;
+                    int8_t bb1 = read_code(frame);
+                    int8_t bb2 = read_code(frame);
+                    int16_t index = (bb1 << 8) | bb2;
+                    frame->pc = store_pc + index;
+                }
                 break;
             }
             case OPCODE_getstatic: {
@@ -110,8 +193,8 @@ void interpret(frame_t *frame, class_t *class) {
                 cp_nameandtype_t *nameandtype = (cp_nameandtype_t *)info;
                 char *name = get_utf8(cp_pools[nameandtype->name_index]);
                 printf("method_name: %s\n", name);
-                int arg = frame->operand_stack[frame->sp--];
-                int obj = frame->operand_stack[frame->sp--];
+                int arg = pop(frame);
+                int obj = pop(frame);
                 // todo 暂时用不到
                 (void) obj;
                 if(strcmp(name, "println") == 0) {
@@ -133,7 +216,7 @@ void interpret(frame_t *frame, class_t *class) {
             }
             case OPCODE_ireturn: {
                 frame_t *invoke = frame->invoker;
-                invoke->operand_stack[++invoke->sp] = frame->operand_stack[frame->sp--];
+                invoke->operand_stack[++invoke->sp] = pop(frame);
                 break;
             }
             case OPCODE_return:
