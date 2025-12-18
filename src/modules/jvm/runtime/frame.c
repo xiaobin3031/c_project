@@ -5,10 +5,15 @@
 
 frame_t *frame_new(code_attr_t *codes) {
     frame_t *frame = malloc(sizeof(frame_t));
+    if(!frame) {
+        perror("create frame error by malloc");
+        exit(1);
+    }
     frame->code = codes->code;
+    frame->code_length = codes->code_length;
     if(codes->max_locals > 0) {
-        frame->local_vars = malloc(codes->max_locals * sizeof(int));
-        frame->operand_stack = malloc(codes->max_stack * sizeof(int));
+        frame->local_vars = calloc(0, codes->max_locals * sizeof(int));
+        frame->operand_stack = calloc(0, codes->max_stack * sizeof(int));
     }
     frame->sp = -1;
     frame->pc = 0;

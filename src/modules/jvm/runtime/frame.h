@@ -1,13 +1,15 @@
 #pragma once
 
 #include "../classfile/attr.h"
+#include "../utils/bytes.h"
 #include <stdint.h>
 
 typedef struct {
     int *local_vars;
     int *operand_stack;
     int sp;
-    uint8_t *code;
+    u4 code_length;
+    u1 *code;
     int pc;
 } frame_t;
 
