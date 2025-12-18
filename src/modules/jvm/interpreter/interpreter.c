@@ -6,42 +6,42 @@
 
 void interpret(frame_t *frame, void **cp_pools) {
     u1 opcode;
-    int sp = 0, pc = 0;
+    int sp = -1, pc = 0;
 
     while(pc < frame->code_length) {
         opcode = frame->code[pc++];
         switch(opcode) {
             case OPCODE_iconst_1:
-                frame->operand_stack[sp++] = 1;
+                frame->operand_stack[++sp] = 1;
+                break;
+            case OPCODE_iconst_2:
+                frame->operand_stack[++sp] = 2;
                 break;
             case OPCODE_istore_1:
                 frame->local_vars[1] = frame->operand_stack[sp--];
                 break;
-            case OPCODE_iconst_2:
-                frame->operand_stack[sp++] = 2;
-                break;
             case OPCODE_istore_2:
                 frame->local_vars[2] = frame->operand_stack[sp--];
                 break;
+            case OPCODE_istore_3:
+                frame->local_vars[3] = frame->operand_stack[sp--];
+                break;
             case OPCODE_iload_1:
-                frame->operand_stack[sp++] = frame->local_vars[1];
+                frame->operand_stack[++sp] = frame->local_vars[1];
                 break;
             case OPCODE_iload_2:
-                frame->operand_stack[sp++] = frame->local_vars[2];
+                frame->operand_stack[++sp] = frame->local_vars[2];
                 break;
             case OPCODE_iload_3: 
-                frame->operand_stack[sp++] = frame->local_vars[3];
+                frame->operand_stack[++sp] = frame->local_vars[3];
                 break;
             case OPCODE_iadd: {
                 int v2 = frame->operand_stack[sp--];
                 int v1 = frame->operand_stack[sp--];
                 int r = v1 + v2;
-                frame->operand_stack[sp++] = r;
+                frame->operand_stack[++sp] = r;
                 break;
             }
-            case OPCODE_istore_3:
-                frame->local_vars[3] = frame->operand_stack[sp--];
-                break;
             case OPCODE_getstatic: {
                 u1 index1 = frame->code[pc++];
                 u1 index2 = frame->code[pc++];
