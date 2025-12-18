@@ -122,7 +122,7 @@ void syn_scan(cli_args *args)
     double elapsed = (t_end.tv_sec - t_start.tv_sec) + (t_end.tv_nsec - t_start.tv_nsec) / 1e9;
     printf("[*] Total scan time: %.3f seconds\n", elapsed);
 
-    finger_rule_db *db = finger_rule_db_load("../src/data/finger_rule");
+    finger_rule_db *db = finger_rule_db_load("../data/finger_rule");
     banner_t *banners[total_ports];
     for(int i=0;i<total_ports;i++) {
         banners[i] = grab_banner(args->target, open_ports[i], db);

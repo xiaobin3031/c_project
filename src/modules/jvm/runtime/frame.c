@@ -9,11 +9,15 @@ frame_t *frame_new(code_attr_t *codes) {
         perror("create frame error by malloc");
         exit(1);
     }
-    frame->code = codes->code;
-    frame->code_length = codes->code_length;
-    if(codes->max_locals > 0) {
-        frame->local_vars = calloc(0, codes->max_locals * sizeof(int));
-        frame->operand_stack = calloc(0, codes->max_stack * sizeof(int));
+    if(codes) {
+        frame->code = codes->code;
+        frame->code_length = codes->code_length;
+        if(codes->max_locals > 0) {
+            frame->local_vars = calloc(0, codes->max_locals * sizeof(int));
+            frame->operand_stack = calloc(0, codes->max_stack * sizeof(int));
+        }
+    }else{
+        frame->code_length = 0;
     }
     frame->sp = -1;
     frame->pc = 0;

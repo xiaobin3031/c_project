@@ -24,7 +24,13 @@ typedef struct {
     u2 descriptor_index;
     u2 attributes_count;
     void **attributes;
+
+    // 方法入参个数，这两个参数从descriptor中解析
+    u2 arg_count;
+    u1 **arg_types;
 } method_t;
+
+int is_flag(method_t *method, method_acc_flags flag);
 
 method_t **read_methods(FILE *file, u2 method_count, void **cp_pools);
 

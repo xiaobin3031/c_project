@@ -2,6 +2,10 @@
 #include "attr.h"
 #include <stdlib.h>
 
+int is_flag(method_t *method, method_acc_flags flag) {
+    return method->access_flags & flag == flag ? 1 : 0;
+}
+
 method_t **read_methods(FILE *file, u2 method_count, void **cp_pools) {
     method_t **methods = malloc(sizeof(method_t *) * method_count);
     for (int i = 0; i < method_count; i++) { 
@@ -11,6 +15,35 @@ method_t **read_methods(FILE *file, u2 method_count, void **cp_pools) {
         method->descriptor_index = read_u2(file);
         method->attributes_count = read_u2(file);
         method->attributes = read_attributes(file, method->attributes_count, cp_pools);
+
+        // 解析param信息
+        void *info = cp_pools[method->descriptor_index];
+        char *descriptor = get_utf8(info);
+        printf("descriptor: %s\n", descriptor);
+        char *ptr = descriptor + 1;
+        u2 arg_count = 0;
+        while(*ptr && *ptr != ')') {
+            if(*ptr == '[') {
+                // 数组，不影响计数
+                ptr++;
+                continue;
+            }
+
+            if(*ptr == 'L') {
+                char *start = ptr+1;
+                char *end = start;
+                while(*end != ';') end++;
+                ptr = end;
+            }
+            ptr++;
+            arg_count++;
+        }
+        if(arg_count > 0) {
+            // todo 暂时不解析类型，还没想好后续怎么使用
+        }
+
+        method->arg_count = arg_count;
+
         methods[i] = method;
     }
     return methods;
@@ -24,6 +57,13 @@ void method_free(method_t **methods, u2 method_count) {
         for (int i = 0; i < method_count; i++) {
             method_t *method = methods[i];
             if(!method) continue;
+
+            if(method->arg_types) {
+                for(int i=0;i<method->arg_count;i++) {
+                    free(method->arg_types[i]);
+                }
+                free(method->arg_types);
+            }
 
             attr_free(method->attributes, method->attributes_count);
             free(method);

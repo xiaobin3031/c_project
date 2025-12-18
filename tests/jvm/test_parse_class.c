@@ -6,7 +6,7 @@
 
 int test_parse_class() {
     int result = FAILURE;
-    class_t *class = read_class_file("../src/data/jvm/Main.class");
+    class_t *class = read_class_file("../data/jvm/Main.class");
     ASSERT_TRUE(class != NULL, "test class file not null");
     ASSERT_EQ(0xCAFEBABE, class->magic, "test class magic CAFEBABE");
     printf("\n");
@@ -30,7 +30,7 @@ int test_parse_class() {
     if(main_method) {
         // 执行方法
         printf("run main method\n");
-        run(main_method, class->cp_pools);
+        run(main_method, class);
     }
 
     class_free(class);

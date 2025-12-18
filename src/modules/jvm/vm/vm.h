@@ -1,6 +1,6 @@
 #pragma once
 #include "../classfile/method_info.h"
-#include "../classfile/constant_pool.h"
+#include "../classfile/class_reader.h"
 
 
-void run(method_t *method, void **cp_pools);
+void run(method_t *method, class_t *class);
