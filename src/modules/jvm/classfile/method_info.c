@@ -19,7 +19,6 @@ method_t **read_methods(FILE *file, u2 method_count, void **cp_pools) {
         // 解析param信息
         void *info = cp_pools[method->descriptor_index];
         char *descriptor = get_utf8(info);
-        printf("descriptor: %s\n", descriptor);
         char *ptr = descriptor + 1;
         u2 arg_count = 0;
         while(*ptr && *ptr != ')') {

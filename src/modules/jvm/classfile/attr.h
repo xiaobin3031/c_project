@@ -36,6 +36,18 @@ typedef enum {
     ATTR_PERMITTED_SUBCLASSES = 29
 } code_attr_tag;
 
+typedef enum {
+    VAR_ITEM_TOP = 0,
+    VAR_ITEM_INTEGER = 1,
+    VAR_ITEM_FLOAT = 2,
+    VAR_ITEM_DOUBLE = 3,
+    VAR_ITEM_LONG = 4,
+    VAR_ITEM_NULL = 5,
+    VAR_ITEM_UNINITIALIZED_THIS = 6,
+    VAR_ITEM_OBJECT = 7,
+    VAR_ITEM_UNINITIALIZED = 8
+} variable_info_tag;
+
 typedef struct {
     u2 start_pc;
     u2 end_pc;
@@ -57,10 +69,33 @@ typedef struct {
     void **attributes;
 } code_attr_t;
 
+typedef struct {
+    u1 tag;
+    union {
+        u2 cpool_index;
+        u2 offset;
+    };
+} verification_type_info_t;
+
+typedef struct {
+    u1 frame_type;
+    u2 offset_delta;
+    u2 number_of_locals;
+    verification_type_info_t **locals;
+    u2 number_of_stack_items;
+    verification_type_info_t **stack;
+} stack_map_frame_t;
+
+typedef struct {
+    u1 tag;
+    u2 attr_name_index;
+    u4 attr_length;
+    u2 number_of_entries;
+    stack_map_frame_t **entries;
+} stack_map_table_attr_t;
 
 void **read_attributes(FILE *file, u2 attr_count, void **cp_pools);
 
 
 
 void attr_free(void **attrs, u2 attr_count);
-void exception_table_free(exception_table_t **exception_table, u2 exception_table_length);
