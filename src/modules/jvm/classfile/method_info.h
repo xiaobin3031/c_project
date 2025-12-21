@@ -25,9 +25,8 @@ typedef struct {
     u2 attributes_count;
     void **attributes;
 
-    // 方法入参个数，这两个参数从descriptor中解析
-    u2 arg_count;
-    u1 **arg_types;
+    // 方法入参个数，这两个参数从descriptor中解析,  long/double占两个slot
+    u2 arg_slot_count;
 } method_t;
 
 int is_flag(method_t *method, method_acc_flags flag);

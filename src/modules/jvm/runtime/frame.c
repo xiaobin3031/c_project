@@ -15,21 +15,23 @@ frame_t *frame_new(code_attr_t *codes) {
         frame->local_var_size = codes->max_locals;
         frame->operand_stack_size = codes->max_stack;
         if(codes->max_locals > 0) {
-            frame->local_vars = malloc(codes->max_locals * sizeof(slot_t *));
-            for(u2 i = 0; i < codes->max_locals; i++){
-                frame->local_vars[i] = malloc(sizeof(slot_t));
+            frame->local_vars = calloc(0, codes->max_locals * sizeof(slot_t *));
+            if(!frame->local_vars) {
+                perror("create frame local vars error by calloc");
+                exit(1);
             }
         }
         if(codes->max_stack > 0) {
-            frame->operand_stack = malloc(codes->max_stack * sizeof(slot_t *));
-            for(u2 i = 0; i < codes->max_stack; i++){
-                frame->operand_stack[i] = malloc(sizeof(slot_t));
+            frame->operand_stack = calloc(0, codes->max_stack * sizeof(slot_t *));
+            if(!frame->operand_stack) {
+                perror("create frame operand stack error by calloc");
+                exit(1);
             }
         }
     }else{
         frame->code_length = 0;
     }
-    frame->sp = -1;
+    frame->sp = 0;
     frame->pc = 0;
     return frame;
 }
@@ -37,18 +39,10 @@ frame_t *frame_new(code_attr_t *codes) {
 
 
 
-static void free_slot(slot_t **slot, u2 length) {
-    if(slot) {
-        for(u2 i = 0; i < length; i++) {
-            free(slot[i]);
-        }
-        free(slot);
-    }
-}
 void frame_free(frame_t *frame) {
     if(frame) {
-        free_slot(frame->local_vars, frame->local_var_size);
-        free_slot(frame->operand_stack, frame->operand_stack_size);
+        if(frame->local_vars) free(frame->local_vars);
+        if(frame->operand_stack) free(frame->operand_stack);
         free(frame);
     }
 }

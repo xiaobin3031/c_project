@@ -30,7 +30,6 @@ void **read_attributes(FILE *file, u2 attr_count, void **cp_pools) {
     void **attrs = malloc(attr_count * sizeof(void *));
     for(u2 i = 0; i < attr_count; i++) {
         u2 attr_name_index = read_u2(file);
-        printf("attr name index: %d\n", attr_name_index);
         void *info = cp_pools[attr_name_index];
         char *attr_name = get_utf8(info);
         if(strcmp(attr_name, "Code") == 0) {

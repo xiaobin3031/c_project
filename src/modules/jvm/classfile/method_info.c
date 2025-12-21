@@ -33,6 +33,8 @@ method_t **read_methods(FILE *file, u2 method_count, void **cp_pools) {
                 char *end = start;
                 while(*end != ';') end++;
                 ptr = end;
+            }else if(*ptr == 'J' || *ptr == 'D') {
+                ptr++;
             }
             ptr++;
             arg_count++;
@@ -41,7 +43,7 @@ method_t **read_methods(FILE *file, u2 method_count, void **cp_pools) {
             // todo 暂时不解析类型，还没想好后续怎么使用
         }
 
-        method->arg_count = arg_count;
+        method->arg_slot_count = arg_count;
 
         methods[i] = method;
     }
@@ -56,13 +58,6 @@ void method_free(method_t **methods, u2 method_count) {
         for (int i = 0; i < method_count; i++) {
             method_t *method = methods[i];
             if(!method) continue;
-
-            if(method->arg_types) {
-                for(int i=0;i<method->arg_count;i++) {
-                    free(method->arg_types[i]);
-                }
-                free(method->arg_types);
-            }
 
             attr_free(method->attributes, method->attributes_count);
             free(method);
