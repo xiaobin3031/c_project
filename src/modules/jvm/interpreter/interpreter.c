@@ -49,10 +49,7 @@ static double pop_double(frame_t *frame) {
     return v;
 }
 static void push_int(frame_t *frame, int32_t v) {
-    slot_t *slot = push(frame);
-    uint32_t bits = (uint32_t) v;
-    slot->bits = bits;
-    // push(frame)->bits = (uint32_t) v;
+    push(frame)->bits = (uint32_t) v;
 }
 static void push_long(frame_t *frame, long v) {
     uint32_t low = (uint32_t)v;
@@ -410,6 +407,6 @@ void interpret(frame_t *frame, class_t *class) {
 void dump_frame(frame_t *frame) {
     printf("[DUMP] frame: \n");
     printf("[DUMP] pc: %d\n", frame->pc);
-    printf("[DUMP] sp: %d\n", frame->sp);
+    printf("[DUMP] sp: %d / %d\n", frame->sp, frame->operand_stack_size);
     printf("[DUMP] opcode: %d\n", frame->code[frame->pc]);
 }
