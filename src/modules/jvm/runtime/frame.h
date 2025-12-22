@@ -8,6 +8,7 @@ typedef struct frame_t frame_t;
 
 typedef struct {
     uint32_t bits;
+    void *ref;
 } slot_t;
 
 struct frame_t {

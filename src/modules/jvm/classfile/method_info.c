@@ -27,7 +27,7 @@ u2 method_slot_count(char *descriptor) {
 }
 
 int method_is_flag(method_t *method, method_acc_flags flag) {
-    return method->access_flags & flag == flag ? 1 : 0;
+    return (method->access_flags & flag) == flag ? 1 : 0;
 }
 
 method_t **read_methods(FILE *file, u2 method_count, void **cp_pools) {

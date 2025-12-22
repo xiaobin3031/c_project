@@ -1,3 +1,7 @@
+class Box {
+    int value;
+}
+
 public class Main {
 
     public static int add(int a, int b) {
@@ -51,6 +55,22 @@ public class Main {
         } else {
             c = 300;
         }
+
+        // =================================================
+        // =============== new / putfield / getfield ========
+        // =================================================
+
+        // new + invokespecial <init>
+        Box box = new Box();
+
+        // putfield
+        box.value = c;
+
+        // getfield
+        int x = box.value;
+
+        // 使用 getfield 结果，避免被优化
+        c = x + 1;
 
         System.out.println(c);
     }

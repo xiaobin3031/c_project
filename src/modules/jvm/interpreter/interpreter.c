@@ -4,6 +4,7 @@
 #include "../classfile/method_info.h"
 #include "../classfile/attr.h"
 #include "../runtime/frame.h"
+#include "../runtime/object.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -233,6 +234,26 @@ void interpret(frame_t *frame, class_t *class) {
                 frame->pc++;
                 break;
             }
+            case OPCODE_aload_0: {
+                push(frame)->ref = get_local(frame, 0)->ref;
+                frame->pc++;
+                break;
+            }
+            case OPCODE_aload_1: {
+                push(frame)->ref = get_local(frame, 1)->ref;
+                frame->pc++;
+                break;
+            }
+            case OPCODE_aload_2: {
+                push(frame)->ref = get_local(frame, 2)->ref;
+                frame->pc++;
+                break;
+            }
+            case OPCODE_aload_3: {
+                push(frame)->ref = get_local(frame, 3)->ref;
+                frame->pc++;
+                break;
+            }
             case OPCODE_iadd: {
                 int32_t v2 = pop_int(frame);
                 int32_t v1 = pop_int(frame);
@@ -257,6 +278,18 @@ void interpret(frame_t *frame, class_t *class) {
             }
             case OPCODE_pop: {
                 pop(frame);
+                frame->pc++;
+                break;
+            }
+            case OPCODE_dup: {
+                slot_t *slot = pop(frame);
+                push(frame);
+                slot_t *dup_slot = push(frame);
+                dup_slot->bits = slot->bits;
+                if(slot->ref) {
+                    dup_slot->ref = malloc(sizeof(slot->ref));
+                    memcpy(dup_slot->ref, slot->ref, sizeof(slot->ref));
+                }
                 frame->pc++;
                 break;
             }
@@ -397,9 +430,47 @@ void interpret(frame_t *frame, class_t *class) {
                 void *info = cp_pools[index];
                 method_t *method = find_method(class, info);
                 frame_t *sub_frame = create_frame(method, frame);
-                sub_frame->invoker = frame;
                 interpret(sub_frame, class);
                 frame_free(sub_frame);
+                frame->pc += 3;
+                break;
+            }
+            case OPCODE_invokespecial: {
+                u1 index1 = frame->code[frame->pc+1];
+                u1 index2 = frame->code[frame->pc+2];
+                u2 index = (index1 << 8) | index2;
+                printf("constant pool size: %d, index: %d\n", class->constant_pool_count, index);
+                void *info = cp_pools[index];
+                method_t *method = find_method(class, info);
+                u2 argc = method->arg_slot_count;
+                slot_t args[argc+1];
+                for(int i=argc;i>=0;i--) {
+                    args[i] = *pop(frame);
+                }
+                frame_t *sub_frame = create_frame(method, NULL);
+                sub_frame->invoker = frame;
+                object_t *ref = (object_t *)args[0].ref;
+                for(int i=0;i<=argc;i++) {
+                    slot_t *slot = get_local(sub_frame, i);
+                    slot->bits = args[i].bits;
+                    slot->ref = args[i].ref;
+                }
+                interpret(sub_frame, ref->class);
+                frame_free(sub_frame);
+                frame->pc += 3;
+                break;
+            }
+            case OPCODE_new: {
+                u1 index1 = frame->code[frame->pc+1];
+                u1 index2 = frame->code[frame->pc+2];
+                u2 index = (index1 << 8) | index2;
+                void *info = cp_pools[index];
+                check_cp_info_tag(info, CONSTANT_Class);
+                class_t *class = (class_t*)info;
+                object_t *ref = calloc(1, sizeof(object_t));
+                ref->class = class;
+                ref->fields = calloc(class->fields_count, sizeof(uint32_t));
+                push(frame)->ref = ref;
                 frame->pc += 3;
                 break;
             }
