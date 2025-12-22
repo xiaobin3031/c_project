@@ -8,20 +8,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <execinfo.h>
 
 static slot_t *pop(frame_t *frame) {
     if(frame->sp <= 0) {
         dump_frame(frame);
         perror("stack underflow");
-        exit(1);
+        abort();
     }
     return &frame->operand_stack[--frame->sp];
 }
 static slot_t *push(frame_t *frame) {
-    if(frame->sp > frame->operand_stack_size) {
+    if(frame->sp >= frame->operand_stack_size) {
         dump_frame(frame);
         perror("stack overflow");
-        exit(1);
+        abort();
     }
     return &frame->operand_stack[frame->sp++];
 }
@@ -112,8 +113,16 @@ frame_t *create_frame(method_t *method, frame_t *invoker) {
     frame->invoker = invoker;
     // 复制方法参数
     if(invoker && method->arg_slot_count > 0) {
-        for(int i=method->arg_slot_count-1;i>=0;i--) {
-            get_local(frame, i)->bits = pop(invoker)->bits;
+        int idx = 0;
+
+        // 1️⃣ instance 方法：先处理 this
+        if (!method_is_flag(method, METHOD_ACC_STATIC)) {
+            get_local(frame, idx++)->bits = pop(invoker)->bits;
+        }
+
+        // 2️⃣ 再处理参数（arg_slot_count 个 slot）
+        for (int i = method->arg_slot_count - 1; i >= 0; i--) {
+            get_local(frame, idx + i)->bits = pop(invoker)->bits;
         }
     }
     return frame;
@@ -174,21 +183,27 @@ void interpret(frame_t *frame, class_t *class) {
                 frame->pc += 2;
                 break;
             }
+            case OPCODE_istore_0: {
+                slot_t *local_slot = get_local(frame, 0);
+                local_slot->bits = pop(frame)->bits;
+                frame->pc++;
+                break;
+            }
             case OPCODE_istore_1: {
-                slot_t *slot = get_local(frame, 1);
-                slot->bits = pop(frame)->bits;
+                slot_t *local_slot = get_local(frame, 1);
+                local_slot->bits = pop(frame)->bits;
                 frame->pc++;
                 break;
             }
             case OPCODE_istore_2: {
-                slot_t *slot = get_local(frame, 2);
-                slot->bits = pop(frame)->bits;
+                slot_t *local_slot = get_local(frame, 2);
+                local_slot->bits = pop(frame)->bits;
                 frame->pc++;
                 break;
             }
             case OPCODE_istore_3: {
-                slot_t *slot = get_local(frame, 3);
-                slot->bits = pop(frame)->bits;
+                slot_t *local_slot = get_local(frame, 3);
+                local_slot->bits = pop(frame)->bits;
                 frame->pc++;
                 break;
             }
@@ -227,16 +242,16 @@ void interpret(frame_t *frame, class_t *class) {
                 break;
             }
             case OPCODE_bipush: {
-                int bb = frame->code[frame->pc+1];
-                push_int(frame, bb);
+                int32_t bb = (int32_t)frame->code[frame->pc+1];
+                push(frame)->bits = (uint32_t)bb;
                 frame->pc += 2;
                 break;
             }
             case OPCODE_sipush: {
                 u1 v1 = frame->code[frame->pc+1];
                 u1 v2 = frame->code[frame->pc+2];
-                int r = (v1 << 8) | v2;
-                push_int(frame, r);
+                u2 r = (v1 << 8) | v2;
+                push_int(frame, (int32_t)r);
                 frame->pc += 3;
                 break;
             }
@@ -248,8 +263,8 @@ void interpret(frame_t *frame, class_t *class) {
             case OPCODE_iinc: { 
                 u1 index = frame->code[frame->pc+1];
                 slot_t *slot = get_local(frame, index);
-                int32_t increment = frame->code[frame->pc+2];
-                int32_t value = slot->bits;
+                int32_t increment = (int32_t)frame->code[frame->pc+2];
+                int32_t value = (int32_t)slot->bits;
                 value += increment;
 
                 slot->bits = (uint32_t)value;
@@ -261,11 +276,11 @@ void interpret(frame_t *frame, class_t *class) {
                 int32_t v1 = pop_int(frame);
                 if(v1 == v2) {
                     u1 bb1 = frame->code[frame->pc+1];
-                    u1 bb2 = frame->code[frame->pc+1];
+                    u1 bb2 = frame->code[frame->pc+2];
                     int16_t index = (int16_t)((bb1 << 8) | bb2);
                     frame->pc += index;
                 }else{
-                    frame->pc++;
+                    frame->pc += 3;
                 }
                 break;
             }
@@ -278,7 +293,7 @@ void interpret(frame_t *frame, class_t *class) {
                     int16_t index = (int16_t)((bb1 << 8) | bb2);
                     frame->pc += index;
                 }else{
-                    frame->pc++;
+                    frame->pc += 3;
                 }
                 break;
             }
@@ -291,7 +306,7 @@ void interpret(frame_t *frame, class_t *class) {
                     int16_t index = (int16_t)((bb1 << 8) | bb2);
                     frame->pc += index;
                 }else{
-                    frame->pc++;
+                    frame->pc += 3;
                 }
                 break;
             }
@@ -304,7 +319,7 @@ void interpret(frame_t *frame, class_t *class) {
                     int16_t index = (int16_t)((bb1 << 8) | bb2);
                     frame->pc += index;
                 }else{
-                    frame->pc++;
+                    frame->pc += 3;
                 }
                 break;
             }
@@ -317,7 +332,7 @@ void interpret(frame_t *frame, class_t *class) {
                     int16_t index = (int16_t)((bb1 << 8) | bb2);
                     frame->pc += index;
                 }else{
-                    frame->pc++;
+                    frame->pc += 3;
                 }
                 break;
             }
@@ -330,7 +345,7 @@ void interpret(frame_t *frame, class_t *class) {
                     int16_t index = (int16_t)((bb1 << 8) | bb2);
                     frame->pc += index;
                 }else{
-                    frame->pc++;
+                    frame->pc += 3;
                 }
                 break;
             }
@@ -346,6 +361,8 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 printf("[WARN] getstatic #%d ignored.\n", index);
+                // todo 所有方法调用都暂时用一个对象占位
+                push_int(frame, 0xdeadbeef);
                 frame->pc += 3;
                 break;
             }
@@ -360,13 +377,16 @@ void interpret(frame_t *frame, class_t *class) {
                 check_cp_info_tag(info, CONSTANT_NameAndType);
                 cp_nameandtype_t *nameandtype = (cp_nameandtype_t *)info;
                 char *name = get_utf8(cp_pools[nameandtype->name_index]);
-                int32_t arg = pop_int(frame);
+                u2 arg_slot_count = method_slot_count(get_utf8(cp_pools[nameandtype->descriptor_index]));
+                for(int i=0;i<arg_slot_count;i++) {
+                    int32_t arg = pop_int(frame);
+                    if(strcmp(name, "println") == 0) {
+                        printf("%d\n", arg);
+                    }
+                }
                 int32_t obj = pop_int(frame);
                 // todo 暂时用不到
                 (void) obj;
-                if(strcmp(name, "println") == 0) {
-                    printf("%d\n", arg);
-                }
                 frame->pc += 3;
                 break;
             }
@@ -386,12 +406,10 @@ void interpret(frame_t *frame, class_t *class) {
             case OPCODE_ireturn: {
                 frame_t *invoke = frame->invoker;
                 push_int(invoke, pop_int(frame));
-                frame->pc++;
-                break;
+                return;
             }
             case OPCODE_return: {
-                frame->pc++;
-                break;
+                return;
             }
             case OPCODE_nop: {
                 frame->pc++;
@@ -406,7 +424,32 @@ void interpret(frame_t *frame, class_t *class) {
 
 void dump_frame(frame_t *frame) {
     printf("[DUMP] frame: \n");
-    printf("[DUMP] pc: %d\n", frame->pc);
+    printf("[DUMP] pc: %d / %d\n", frame->pc, frame->code_length);
     printf("[DUMP] sp: %d / %d\n", frame->sp, frame->operand_stack_size);
     printf("[DUMP] opcode: %d\n", frame->code[frame->pc]);
+}
+
+void print_operand_stack(frame_t *frame) {
+    printf("[DUMP] operand stack: %p\n", frame->operand_stack);
+    for(int i=0;i<frame->sp;i++) {
+        printf("[DUMP] operand stack: %d, %p\n", i, &frame->operand_stack[i]);
+    }
+}
+
+
+void print_stacktrace(void) {
+    void *buffer[64];
+    int nptrs = backtrace(buffer, 64);
+    char **symbols = backtrace_symbols(buffer, nptrs);
+
+    if (symbols == NULL) {
+        perror("backtrace_symbols");
+        return;
+    }
+
+    for (int i = 0; i < nptrs; i++) {
+        printf("%s\n", symbols[i]);
+    }
+
+    free(symbols);
 }

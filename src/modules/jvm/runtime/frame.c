@@ -15,17 +15,17 @@ frame_t *frame_new(code_attr_t *codes) {
         frame->local_var_size = codes->max_locals;
         frame->operand_stack_size = codes->max_stack;
         if(codes->max_locals > 0) {
-            frame->local_vars = calloc(0, codes->max_locals * sizeof(slot_t *));
+            frame->local_vars = calloc(codes->max_locals, sizeof(slot_t));
             if(!frame->local_vars) {
                 perror("create frame local vars error by calloc");
-                exit(1);
+                abort();
             }
         }
         if(codes->max_stack > 0) {
-            frame->operand_stack = calloc(0, codes->max_stack * sizeof(slot_t *));
+            frame->operand_stack = calloc(codes->max_stack, sizeof(slot_t));
             if(!frame->operand_stack) {
                 perror("create frame operand stack error by calloc");
-                exit(1);
+                abort();
             }
         }
     }else{
@@ -33,6 +33,7 @@ frame_t *frame_new(code_attr_t *codes) {
     }
     frame->sp = 0;
     frame->pc = 0;
+    frame->invoker = NULL;
     return frame;
 }
 
