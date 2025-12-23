@@ -41,9 +41,9 @@ frame_t *frame_new(code_attr_t *codes) {
 
 
 void frame_free(frame_t *frame) {
-    if(frame) {
-        if(frame->local_vars) free(frame->local_vars);
-        if(frame->operand_stack) free(frame->operand_stack);
-        free(frame);
-    }
+    // if(frame) {
+    //     if(frame->local_vars) free(frame->local_vars);
+    //     if(frame->operand_stack) free(frame->operand_stack);
+    //     free(frame);
+    // }
 }

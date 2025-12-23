@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-arraylist *class_list = NULL;
-
 u2 slot_count_from_desciptor(char *descriptor) {
     char *ptr = descriptor + 1;
     u2 arg_count = 0;
@@ -43,22 +41,7 @@ u2 slot_count_from_class(class_t *class) {
     return slot_count;
 }
 
-class_t *resolve_class(const char *class_name) { 
-    // todo 后面再换成hash，现在还不会写
-    for(int i = 0; i < class_list->size; i++) {
-        class_t* class = (class_t*)arraylist_get(class_list, i);
-        if(!class) {
-            continue;
-        }
-        if(strcmp(class->class_name, class_name) == 0) {
-            return class_list->values[i];
-        }
-    }
-    return NULL;
-}
-
 class_t *read_class_file(const char *path) {
-    if(!class_list) class_list = arraylist_new(10);
 
     FILE *class_file;
 
@@ -93,7 +76,6 @@ class_t *read_class_file(const char *path) {
     check_cp_info_tag(info, CONSTANT_Class);
     cp_class_t *class_info = (cp_class_t*)info;
     class->class_name = get_utf8(class->cp_pools[class_info->name_index]);
-    arraylist_add(class_list, class);
 
     return class;
 }

@@ -5,6 +5,7 @@
 #include "../classfile/attr.h"
 #include "../runtime/frame.h"
 #include "../runtime/object.h"
+#include "../vm/vm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -72,7 +73,7 @@ static void push_double(frame_t *frame, double v) {
 static u1 read_code(frame_t *frame) {
     if(frame->pc >= frame->code_length) {
         fprintf(stderr, "pc out of range\n");
-        exit(1);
+        abort();
     }
     return frame->code[frame->pc++];
 }
@@ -80,7 +81,7 @@ static u1 read_code(frame_t *frame) {
 static slot_t *get_local(frame_t *frame, u2 index) {
     if(index >= frame->local_var_size) {
         fprintf(stderr, "local var index out of range: %d\n", index);
-        exit(1);
+        abort();
     }
     return &frame->local_vars[index];
 }
@@ -439,7 +440,6 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                printf("constant pool size: %d, index: %d\n", class->constant_pool_count, index);
                 void *info = cp_pools[index];
                 method_t *method = find_method(class, info);
                 u2 argc = method->arg_slot_count;
@@ -449,6 +449,7 @@ void interpret(frame_t *frame, class_t *class) {
                 }
                 frame_t *sub_frame = create_frame(method, NULL);
                 sub_frame->invoker = frame;
+                sub_frame->local_vars = calloc(argc+1, sizeof(slot_t));
                 object_t *ref = (object_t *)args[0].ref;
                 for(int i=0;i<=argc;i++) {
                     slot_t *slot = get_local(sub_frame, i);
@@ -468,13 +469,7 @@ void interpret(frame_t *frame, class_t *class) {
                 check_cp_info_tag(info, CONSTANT_Class);
                 cp_class_t *cp_class = (cp_class_t*) info;
                 char *class_name = get_utf8(cp_pools[cp_class->name_index]);
-                printf("class name: %s\n", class_name);
-                // todo 这里有问题
-                class_t *local_class = resolve_class(class_name);
-                if(!local_class) {
-                    fprintf(stderr, "class not found: %s\n", class_name);
-                    abort();
-                }
+                class_t *local_class = load_class(class_name);
                 u2 class_field_slot_count = slot_count_from_class(local_class);
                 object_t *ref = calloc(1, sizeof(object_t));
                 ref->class = local_class;

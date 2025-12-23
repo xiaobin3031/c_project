@@ -15,7 +15,7 @@ static int run_test_module_inner(const char *module_name, test_case_t tests[]) {
 
     while (current->function != NULL) {
         total_tests++;
-        printf("  Running case: %s... ", current->name);
+        printf("  Running case: %s... \n", current->name);
         if (current->function() != SUCCESS) {
             failed_tests++;
             printf("FAILED.\n");

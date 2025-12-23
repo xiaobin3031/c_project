@@ -4,12 +4,45 @@
 #include "../classfile/attr.h"
 #include "../classfile/class_reader.h"
 #include "../interpreter/interpreter.h"
+#include "../project/project.h"
+#include "../../../core/list/arraylist.h"
+#include <stdio.h>
+#include <string.h>
 
+static project_t *g_project;
+static arraylist *g_class_list;
 
-void run(method_t *method, class_t *class) {
-    if(method->attributes_count > 0) {
-        frame_t *frame = create_frame(method, NULL);
-        interpret(frame, class);
-        frame_free(frame);
+class_t *load_class(const char *class_file) {
+    char full_path[1024];
+    snprintf(full_path, sizeof(full_path), "%s/%s.class", g_project->root_path, class_file);
+    class_t *class = read_class_file(full_path);
+    if(class) {
+        return class;
     }
+
+    fprintf(stderr, "class file not found: %s\n", class_file);
+    abort();
+}
+
+void run(const char *main_class_file, project_t *project) {
+    g_project = project;
+    g_class_list = arraylist_new(10);
+
+    class_t *main_class = load_class(main_class_file);
+    method_t *main_method;
+    for(int i=0;i<main_class->methods_count;i++) {
+        method_t *method = main_class->methods[i];
+        char *method_name = get_utf8(main_class->cp_pools[method->name_index]);
+        if(strcmp(method_name, "main") == 0) {
+            main_method = method;
+            break;
+        }
+    }
+    if(main_method == NULL){
+        printf("Can not find main method in class %s\n", main_class_file);
+        abort();
+    }
+    frame_t *frame = create_frame(main_method, NULL);
+    interpret(frame, main_class);
+    frame_free(frame);
 }

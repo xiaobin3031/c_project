@@ -30,9 +30,6 @@ u2 slot_count_from_desciptor(char *descriptor);
 
 u2 slot_count_from_class(class_t *class);
 
-class_t *resolve_class(const char *class_name);
-
-
 class_t *read_class_file(const char *path);
 
 void class_free(class_t *class);
