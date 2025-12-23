@@ -410,7 +410,7 @@ void interpret(frame_t *frame, class_t *class) {
                 check_cp_info_tag(info, CONSTANT_NameAndType);
                 cp_nameandtype_t *nameandtype = (cp_nameandtype_t *)info;
                 char *name = get_utf8(cp_pools[nameandtype->name_index]);
-                u2 arg_slot_count = method_slot_count(get_utf8(cp_pools[nameandtype->descriptor_index]));
+                u2 arg_slot_count = slot_count_from_desciptor(get_utf8(cp_pools[nameandtype->descriptor_index]));
                 for(int i=0;i<arg_slot_count;i++) {
                     int32_t arg = pop_int(frame);
                     if(strcmp(name, "println") == 0) {
@@ -466,10 +466,19 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index = (index1 << 8) | index2;
                 void *info = cp_pools[index];
                 check_cp_info_tag(info, CONSTANT_Class);
-                class_t *class = (class_t*)info;
+                cp_class_t *cp_class = (cp_class_t*) info;
+                char *class_name = get_utf8(cp_pools[cp_class->name_index]);
+                printf("class name: %s\n", class_name);
+                // todo 这里有问题
+                class_t *local_class = resolve_class(class_name);
+                if(!local_class) {
+                    fprintf(stderr, "class not found: %s\n", class_name);
+                    abort();
+                }
+                u2 class_field_slot_count = slot_count_from_class(local_class);
                 object_t *ref = calloc(1, sizeof(object_t));
-                ref->class = class;
-                ref->fields = calloc(class->fields_count, sizeof(uint32_t));
+                ref->class = local_class;
+                ref->fields = calloc(class_field_slot_count, sizeof(slot_t));
                 push(frame)->ref = ref;
                 frame->pc += 3;
                 break;

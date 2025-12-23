@@ -18,7 +18,7 @@ void check_cp_info_tag(void *cp_info, u1 special_tag) {
     if(!is_cp_info_tag(cp_info, special_tag)) {
         u1 tag = (u1)*((char *)cp_info);
         fprintf(stderr, "tag not match, expect %d, but got %d\n", special_tag, tag);
-        exit(1);
+        abort();
     }
 }
 

@@ -4,5 +4,5 @@
 
 typedef struct {
     class_t *class;
-    void *fields;
+    slot_t *fields;
 } object_t;

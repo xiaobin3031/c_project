@@ -1,13 +1,65 @@
 #include "class_reader.h"
 #include "../utils/bytes.h"
+#include "../../../core/list/arraylist.h"
 #include "constant_pool.h"
 #include "field.h"
 #include "method_info.h"
 #include "attr.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+arraylist *class_list = NULL;
+
+u2 slot_count_from_desciptor(char *descriptor) {
+    char *ptr = descriptor + 1;
+    u2 arg_count = 0;
+    while(*ptr && *ptr != ')') {
+        if(*ptr == '[') {
+            // 数组，不影响计数
+            ptr++;
+            continue;
+        }
+
+        if(*ptr == 'L') {
+            char *start = ptr+1;
+            char *end = start;
+            while(*end != ';') end++;
+            ptr = end;
+        }else if(*ptr == 'J' || *ptr == 'D') {
+            ptr++;
+        }
+        ptr++;
+        arg_count++;
+    }
+    return arg_count;
+}
+
+u2 slot_count_from_class(class_t *class) {
+    u2 slot_count = 0;
+    for(int i = 0; i < class->fields_count; i++) {
+        slot_count += slot_count_from_desciptor(class->cp_pools[class->fields[i]->descriptor_index]);
+    }
+    return slot_count;
+}
+
+class_t *resolve_class(const char *class_name) { 
+    // todo 后面再换成hash，现在还不会写
+    for(int i = 0; i < class_list->size; i++) {
+        class_t* class = (class_t*)arraylist_get(class_list, i);
+        if(!class) {
+            continue;
+        }
+        if(strcmp(class->class_name, class_name) == 0) {
+            return class_list->values[i];
+        }
+    }
+    return NULL;
+}
 
 class_t *read_class_file(const char *path) {
+    if(!class_list) class_list = arraylist_new(10);
+
     FILE *class_file;
 
     class_file = fopen(path, "rb");
@@ -37,6 +89,12 @@ class_t *read_class_file(const char *path) {
 
     fclose(class_file);
 
+    void *info = class->cp_pools[class->this_class];
+    check_cp_info_tag(info, CONSTANT_Class);
+    cp_class_t *class_info = (cp_class_t*)info;
+    class->class_name = get_utf8(class->cp_pools[class_info->name_index]);
+    arraylist_add(class_list, class);
+
     return class;
 }
 
@@ -51,6 +109,7 @@ void class_free(class_t *class) {
         field_free(class->fields, class->fields_count);
         method_free(class->methods, class->methods_count);
         attr_free(class->attributes, class->attributes_count);
+        free(class->class_name);
         free(class);
     }
 }

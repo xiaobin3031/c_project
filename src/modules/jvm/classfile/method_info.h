@@ -29,8 +29,6 @@ typedef struct {
     u2 arg_slot_count;
 } method_t;
 
-u2 method_slot_count(char *descriptor);
-
 int method_is_flag(method_t *method, method_acc_flags flag);
 
 method_t **read_methods(FILE *file, u2 method_count, void **cp_pools);
