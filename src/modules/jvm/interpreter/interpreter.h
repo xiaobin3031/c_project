@@ -3,9 +3,10 @@
 #include "../runtime/frame.h"
 #include "../classfile/class_reader.h"
 #include "../classfile/method_info.h"
+#include "../classfile/constant_pool.h"
 #include "../runtime/frame.h"
 
-method_t *find_method(class_t *class, void *cp_info);
+method_t *find_method(class_t *class, cp_info_t *cp_info);
 
 frame_t *create_frame(method_t *method, frame_t *invoker);
 
@@ -16,3 +17,5 @@ void dump_frame(frame_t *frame);
 void print_operand_stack(frame_t *frame);
 
 void print_stacktrace(void);
+
+void dump_code_hex(u1 *codes);

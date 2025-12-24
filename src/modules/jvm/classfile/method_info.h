@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
+#include "attr.h"
 #include <stdio.h>
 
 typedef enum {
@@ -23,16 +24,16 @@ typedef struct {
     u2 name_index;
     u2 descriptor_index;
     u2 attributes_count;
-    void **attributes;
+    attribute_t *attributes;
 
     // 方法入参个数，这两个参数从descriptor中解析,  long/double占两个slot
     u2 arg_slot_count;
 } method_t;
 
-int method_is_flag(method_t *method, method_acc_flags flag);
+int method_is_flag(u2 access_flag, method_acc_flags flag);
 
-method_t **read_methods(FILE *file, u2 method_count, void **cp_pools);
+method_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools);
 
 
 
-void method_free(method_t **methods, u2 method_count);
+void method_free(method_t *methods, u2 method_count);

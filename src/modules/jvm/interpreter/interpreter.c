@@ -2,10 +2,11 @@
 #include "opcode.h"
 #include "../classfile/class_reader.h"
 #include "../classfile/method_info.h"
+#include "../classfile/constant_pool.h"
 #include "../classfile/attr.h"
 #include "../runtime/frame.h"
-#include "../runtime/object.h"
 #include "../vm/vm.h"
+#include "../utils/slots.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,50 +82,58 @@ static u1 read_code(frame_t *frame) {
 static slot_t *get_local(frame_t *frame, u2 index) {
     if(index >= frame->local_var_size) {
         fprintf(stderr, "local var index out of range: %d\n", index);
+        dump_frame(frame);
         abort();
     }
     return &frame->local_vars[index];
 }
 
-method_t *find_method(class_t *class, void *info) {
-    check_cp_info_tag(info, CONSTANT_Methodref);
-    cp_methodref_t *methodref = (cp_methodref_t*)info;
-    info = class->cp_pools[methodref->name_and_type_index];
-    check_cp_info_tag(info, CONSTANT_NameAndType);
-    cp_nameandtype_t *nametype = (cp_nameandtype_t*)info;
+method_t *find_method(class_t *class, cp_info_t *info) {
+    check_cp_info_tag(info->tag, CONSTANT_Methodref);
+    u2 index = (info->info[2] << 8) | info->info[3];
+    cp_info_t nametype = class->cp_pools[index];
+    check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
+    u2 name_index = (nametype.info[0] << 8) | nametype.info[1];
+    u2 descriptor_index = (nametype.info[2] << 8) | nametype.info[3];
     for(int i=0;i<class->methods_count;i++) {
-        method_t *method = class->methods[i];
-        if(method->name_index == nametype->name_index && method->descriptor_index == nametype->descriptor_index)
+        method_t *method = &class->methods[i];
+        if(method->name_index == name_index && method->descriptor_index == descriptor_index)
             return method;
     }
-    char *method_name = get_utf8(class->cp_pools[nametype->name_index]);
+    char *method_name = get_utf8(&class->cp_pools[name_index]);
     fprintf(stderr, "cannot find method: %s\n", method_name);
-    exit(1);
+    abort();
 }
 
 frame_t *create_frame(method_t *method, frame_t *invoker) {
-    code_attr_t *code;
+    attribute_t *code;
     for(int i=0;i<method->attributes_count;i++) {
-        void *info = method->attributes[i];
-        if(is_cp_info_tag(info, ATTR_CODE)) {
-            code = (code_attr_t *)info;
+        attribute_t attr = method->attributes[i];
+        if(is_cp_info_tag(attr.tag, ATTR_CODE)) {
+            code = &attr;
             break;
         }
     }
-    frame_t *frame = frame_new(code);
+    if(!code) {
+        perror("method code not found");
+        abort();
+    }
+    int is_static = method_is_flag(method->access_flags, METHOD_ACC_STATIC);
+    frame_t *frame = frame_new(code, is_static);
     frame->invoker = invoker;
     // 复制方法参数
-    if(invoker && method->arg_slot_count > 0) {
-        int idx = 0;
-
-        // 1️⃣ instance 方法：先处理 this
-        if (!method_is_flag(method, METHOD_ACC_STATIC)) {
-            get_local(frame, idx++)->bits = pop(invoker)->bits;
-        }
+    if(invoker) {
+        u2 total_slot_count = method->arg_slot_count;
+        printf("total_slot_count: %d\n", total_slot_count);
+        if(!is_static) total_slot_count++;
+        printf("total_slot_count 2: %d\n", total_slot_count);
 
         // 2️⃣ 再处理参数（arg_slot_count 个 slot）
-        for (int i = method->arg_slot_count - 1; i >= 0; i--) {
-            get_local(frame, idx + i)->bits = pop(invoker)->bits;
+        for (int i = total_slot_count - 1; i >= 0; i--) {
+            slot_t *local = get_local(frame, i);
+            slot_t *stack = pop(invoker);
+            local->bits = stack->bits;
+            local->ref = stack->ref;
         }
     }
     return frame;
@@ -134,10 +143,11 @@ void interpret(frame_t *frame, class_t *class) {
     if(frame->code_length == 0) return;
 
     u1 opcode;
-    void **cp_pools = class->cp_pools;
+    cp_info_t *cp_pools = class->cp_pools;
 
     while(frame->pc < frame->code_length) {
         opcode = frame->code[frame->pc];
+        printf("opcode: %d\n", opcode);
         switch(opcode) {
             case OPCODE_iconst_0: {
                 push_int(frame, 0);
@@ -209,6 +219,12 @@ void interpret(frame_t *frame, class_t *class) {
                 frame->pc++;
                 break;
             }
+            case OPCODE_astore: {
+                u1 index = frame->code[frame->pc + 1];
+                get_local(frame, index)->ref = pop(frame)->ref;
+                frame->pc += 2;
+                break;
+            }
             case OPCODE_iload: {
                 u1 index = frame->code[frame->pc+1];
                 push(frame)->bits = get_local(frame, index)->bits;
@@ -233,6 +249,12 @@ void interpret(frame_t *frame, class_t *class) {
             case OPCODE_iload_3: {
                 push(frame)->bits = get_local(frame, 3)->bits;
                 frame->pc++;
+                break;
+            }
+            case OPCODE_aload: {
+                u1 index = frame->code[frame->pc + 1];
+                push(frame)->ref = get_local(frame, index)->ref;
+                frame->pc += 2;
                 break;
             }
             case OPCODE_aload_0: {
@@ -404,14 +426,12 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                void *info = cp_pools[index];
-                check_cp_info_tag(info, CONSTANT_Methodref);
-                cp_methodref_t *methodref = (cp_methodref_t *)info;
-                info = cp_pools[methodref->name_and_type_index];
-                check_cp_info_tag(info, CONSTANT_NameAndType);
-                cp_nameandtype_t *nameandtype = (cp_nameandtype_t *)info;
-                char *name = get_utf8(cp_pools[nameandtype->name_index]);
-                u2 arg_slot_count = slot_count_from_desciptor(get_utf8(cp_pools[nameandtype->descriptor_index]));
+                cp_info_t info = cp_pools[index];
+                check_cp_info_tag(info.tag, CONSTANT_Methodref);
+                info = cp_pools[parse_to_u2(info.info + 2)];
+                check_cp_info_tag(info.tag, CONSTANT_NameAndType);
+                char *name = get_utf8(&cp_pools[parse_to_u2(info.info)]);
+                u2 arg_slot_count = slot_count_from_desciptor(get_utf8(&cp_pools[parse_to_u2(info.info + 2)]));
                 for(int i=0;i<arg_slot_count;i++) {
                     int32_t arg = pop_int(frame);
                     if(strcmp(name, "println") == 0) {
@@ -428,8 +448,8 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                void *info = cp_pools[index];
-                method_t *method = find_method(class, info);
+                cp_info_t info = cp_pools[index];
+                method_t *method = find_method(class, &info);
                 frame_t *sub_frame = create_frame(method, frame);
                 interpret(sub_frame, class);
                 frame_free(sub_frame);
@@ -437,26 +457,62 @@ void interpret(frame_t *frame, class_t *class) {
                 break;
             }
             case OPCODE_invokespecial: {
-                u1 index1 = frame->code[frame->pc+1];
-                u1 index2 = frame->code[frame->pc+2];
+                u2 index1 = frame->code[frame->pc+1];
+                u2 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                void *info = cp_pools[index];
-                method_t *method = find_method(class, info);
-                u2 argc = method->arg_slot_count;
-                slot_t args[argc+1];
-                for(int i=argc;i>=0;i--) {
-                    args[i] = *pop(frame);
+                cp_info_t methodref = cp_pools[index];
+                check_cp_info_tag(methodref.tag, CONSTANT_Methodref);
+
+                // class index
+                index = parse_to_u2(methodref.info);
+                cp_info_t classref = cp_pools[index];
+                check_cp_info_tag(classref.tag, CONSTANT_Class);
+                index = parse_to_u2(classref.info);
+                char *c_name = get_utf8(&cp_pools[index]);
+                printf("class name: %s\n", c_name);
+
+                // name and type index
+                index = parse_to_u2(methodref.info + 2);
+                cp_info_t nametype = cp_pools[index];
+                check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
+                u2 name_index = (nametype.info[0] << 8) | nametype.info[1];
+                u2 descriptor_index = (nametype.info[2] << 8) | nametype.info[3];
+                method_t *call_method;
+                for(int i=0;i<class->methods_count;i++) {
+                    method_t *method = &class->methods[i];
+                    if(method->name_index == name_index && method->descriptor_index == descriptor_index) {
+                        call_method = method;
+                        break;
+                    }
                 }
-                frame_t *sub_frame = create_frame(method, NULL);
-                sub_frame->invoker = frame;
-                sub_frame->local_vars = calloc(argc+1, sizeof(slot_t));
-                object_t *ref = (object_t *)args[0].ref;
-                for(int i=0;i<=argc;i++) {
-                    slot_t *slot = get_local(sub_frame, i);
-                    slot->bits = args[i].bits;
-                    slot->ref = args[i].ref;
+                char *m_name = get_utf8(&cp_pools[name_index]);
+                if(call_method == NULL) {
+                    fprintf(stderr, "Error: method not found: %s\n", m_name);
+                    abort();
                 }
-                interpret(sub_frame, ref->class);
+                // 1. 获取方法名和类名
+                // 假设你有办法从 method 拿到它所属的 class 结构
+                // char *c_name = get_class_name(method->owner_class); 
+                printf("invokespecial: %s\n", m_name);
+
+                frame_t *sub_frame = create_frame(call_method, frame);
+                slot_t *this_slot = get_local(sub_frame, 0);
+    
+                if (this_slot->ref == NULL) {
+                    fprintf(stderr, "Error: 'this' is NULL in invokespecial\n");
+                    abort();
+                }
+
+                // 2. 补丁：如果是 Object 的初始化，直接返回，不进入 interpret
+                // 这里的判断逻辑需要根据你的 class 结构完善
+                if (strcmp(m_name, "<init>") == 0) {
+                    // 如果类名是 java/lang/Object，则不递归
+                    if(strcmp(c_name, "java/lang/Object") == 0) {
+                        return;
+                    }
+                }
+                // abort();
+                interpret(sub_frame, this_slot->ref->class);
                 frame_free(sub_frame);
                 frame->pc += 3;
                 break;
@@ -465,15 +521,13 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                void *info = cp_pools[index];
-                check_cp_info_tag(info, CONSTANT_Class);
-                cp_class_t *cp_class = (cp_class_t*) info;
-                char *class_name = get_utf8(cp_pools[cp_class->name_index]);
+                cp_info_t info = cp_pools[index];
+                check_cp_info_tag(info.tag, CONSTANT_Class);
+                char *class_name = get_utf8(&cp_pools[parse_to_u2(info.info)]);
                 class_t *local_class = load_class(class_name);
-                u2 class_field_slot_count = slot_count_from_class(local_class);
                 object_t *ref = calloc(1, sizeof(object_t));
                 ref->class = local_class;
-                ref->fields = calloc(class_field_slot_count, sizeof(slot_t));
+                ref->fields = calloc(local_class->total_field_slots, sizeof(slot_t));
                 push(frame)->ref = ref;
                 frame->pc += 3;
                 break;
@@ -490,6 +544,106 @@ void interpret(frame_t *frame, class_t *class) {
                 frame->pc++;
                 break;
             }
+            case OPCODE_getfield: {
+                u1 i1 = frame->code[frame->pc+1];
+                u1 i2 = frame->code[frame->pc+2];
+                u2 index = (i1 << 8) | i2;
+                cp_info_t fieldref = cp_pools[index];
+                check_cp_info_tag(fieldref.tag, CONSTANT_Fieldref);
+                cp_info_t nametype = cp_pools[parse_to_u2(fieldref.info + 2)];
+                check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
+                char *field_name = get_utf8(&cp_pools[parse_to_u2(nametype.info)]);
+                char *field_descriptor = get_utf8(&cp_pools[parse_to_u2(nametype.info + 2)]);
+
+                // 找到field所在的class，获取field在实例对象中的位置和属性数量
+                cp_info_t target_classref = cp_pools[parse_to_u2(fieldref.info)];
+                check_cp_info_tag(target_classref.tag, CONSTANT_Class);
+                class_t *target_class = load_class(get_utf8(&cp_pools[parse_to_u2(target_classref.info)]));
+                field_t *target_field;
+                for(u2 i = 0;i<target_class->fields_count;i++) {
+                    field_t *field = &target_class->fields[i];
+                    char *t_field_name = get_utf8(&target_class->cp_pools[field->name_index]);
+                    char *t_field_descriptor = get_utf8(&target_class->cp_pools[field->descriptor_index]);
+                    if(strcmp(field_name, t_field_name) == 0 && strcmp(field_descriptor, t_field_descriptor) == 0){
+                        target_field = field;
+                        break;
+                    }
+                }
+                if(!target_field) {
+                    fprintf(stderr, "cannot not found field: %s %s\n", field_name, field_descriptor);
+                    abort();
+                }
+
+                object_t *ref = pop(frame)->ref;
+                for(int i = target_field->slot_offset_in_class + target_field->slot_count - 1;
+                    i >= target_field->slot_offset_in_class; i--) {
+                    slot_t field_slot = ref->fields[i];
+                    slot_t *slot = push(frame);
+                    slot->bits = field_slot.bits;
+                    if(field_slot.ref) {
+                        memcpy(slot->ref, field_slot.ref, sizeof(field_slot.ref));
+                    }
+                }
+
+                frame->pc += 3;
+                break;
+            }
+            case OPCODE_putfield: {
+                u1 i1 = frame->code[frame->pc+1];
+                u1 i2 = frame->code[frame->pc+2];
+                u2 index = (i1 << 8) | i2;
+                cp_info_t fieldref = cp_pools[index];
+                check_cp_info_tag(fieldref.tag, CONSTANT_Fieldref);
+                cp_info_t nametype = cp_pools[parse_to_u2(fieldref.info + 2)];
+                check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
+                char *field_name = get_utf8(&cp_pools[parse_to_u2(nametype.info)]);
+                char *field_descriptor = get_utf8(&cp_pools[parse_to_u2(nametype.info + 2)]);
+
+                // 找到field所在的class，获取field在实例对象中的位置和属性数量
+                cp_info_t target_classref = cp_pools[parse_to_u2(fieldref.info)];
+                check_cp_info_tag(target_classref.tag, CONSTANT_Class);
+                class_t *target_class = load_class(get_utf8(&cp_pools[parse_to_u2(target_classref.info)]));
+                field_t *target_field;
+                for(u2 i = 0;i<target_class->fields_count;i++) {
+                    field_t *field = &target_class->fields[i];
+                    char *t_field_name = get_utf8(&target_class->cp_pools[field->name_index]);
+                    char *t_field_descriptor = get_utf8(&target_class->cp_pools[field->descriptor_index]);
+                    if(strcmp(field_name, t_field_name) == 0 && strcmp(field_descriptor, t_field_descriptor) == 0){
+                        target_field = field;
+                        break;
+                    }
+                }
+                if(!target_field) {
+                    fprintf(stderr, "cannot not found field: %s %s\n", field_name, field_descriptor);
+                    abort();
+                }
+
+                // 从当前堆栈中，pop出指定数量的slot
+                slot_t argc[target_field->slot_count];
+                index = 0;
+                for(u2 i =0;i<target_field->slot_count;i++) {
+                    slot_t *slot = pop(frame);
+                    argc[i].bits = slot->bits;
+                    if(slot->ref) {
+                        memcpy(argc[i].ref, slot->ref, sizeof(slot->ref));
+                    }
+                }
+
+                // 把slot的信息写到实例对象中
+                slot_t *objref = pop(frame);
+                object_t *ref = objref->ref;
+                for(u2 i=0;i<target_field->slot_count;i++) {
+                    slot_t field_slot = ref->fields[target_field->slot_offset_in_class + i];
+                    slot_t arg = argc[i];
+                    field_slot.bits = arg.bits;
+                    if(arg.ref) {
+                        memcpy(field_slot.ref, arg.ref, sizeof(arg.ref));
+                    }
+                }
+
+                frame->pc += 3;
+                break;
+            }
             default: 
                 fprintf(stderr, "unknown opcode: %d\n", opcode);
                 exit(1);
@@ -499,6 +653,7 @@ void interpret(frame_t *frame, class_t *class) {
 
 void dump_frame(frame_t *frame) {
     printf("[DUMP] frame: \n");
+    printf("[DUMP] local vars: %d\n", frame->local_var_size);
     printf("[DUMP] pc: %d / %d\n", frame->pc, frame->code_length);
     printf("[DUMP] sp: %d / %d\n", frame->sp, frame->operand_stack_size);
     printf("[DUMP] opcode: %d\n", frame->code[frame->pc]);
@@ -527,4 +682,12 @@ void print_stacktrace(void) {
     }
 
     free(symbols);
+}
+
+void dump_code_hex(u1 *codes) {
+    printf("[DUMP] code: ");
+    for(int i=0;i<codes[0];i++) {
+        printf("%02x ", codes[i]);
+    }
+    printf("\n");
 }

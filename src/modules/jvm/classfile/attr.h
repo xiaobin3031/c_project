@@ -49,53 +49,16 @@ typedef enum {
 } variable_info_tag;
 
 typedef struct {
-    u2 start_pc;
-    u2 end_pc;
-    u2 handler_pc;
-    u2 catch_type;
-} exception_table_t;
-
-typedef struct {
-    u1 tag;    // 不是class文件中的
-    u2 attr_name_index;
-    u4 attr_length;
-    u2 max_stack;
-    u2 max_locals;
-    u4 code_length;
-    u1 *code;
-    u2 exception_table_length;
-    exception_table_t **exception_table;
-    u2 attributes_count;
-    void **attributes;
-} code_attr_t;
-
-typedef struct {
     u1 tag;
-    union {
-        u2 cpool_index;
-        u2 offset;
-    };
-} verification_type_info_t;
+    u2 attribute_name_index;
+    u4 attribute_length;
+    u1 *info;
+} attribute_t;
 
-typedef struct {
-    u1 frame_type;
-    u2 offset_delta;
-    u2 number_of_locals;
-    verification_type_info_t **locals;
-    u2 number_of_stack_items;
-    verification_type_info_t **stack;
-} stack_map_frame_t;
+int is_attr_tag(u1 tag, u1 special_tag);
 
-typedef struct {
-    u1 tag;
-    u2 attr_name_index;
-    u4 attr_length;
-    u2 number_of_entries;
-    stack_map_frame_t **entries;
-} stack_map_table_attr_t;
-
-void **read_attributes(FILE *file, u2 attr_count, void **cp_pools);
+attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools);
 
 
 
-void attr_free(void **attrs, u2 attr_count);
+void attr_free(attribute_t *attrs, u2 attr_count);

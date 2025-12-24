@@ -31,10 +31,10 @@ void run(const char *main_class_file, project_t *project) {
     class_t *main_class = load_class(main_class_file);
     method_t *main_method;
     for(int i=0;i<main_class->methods_count;i++) {
-        method_t *method = main_class->methods[i];
-        char *method_name = get_utf8(main_class->cp_pools[method->name_index]);
+        method_t method = main_class->methods[i];
+        char *method_name = get_utf8(&main_class->cp_pools[method.name_index]);
         if(strcmp(method_name, "main") == 0) {
-            main_method = method;
+            main_method = &method;
             break;
         }
     }

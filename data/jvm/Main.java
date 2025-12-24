@@ -44,7 +44,7 @@ public class Main {
 
         // ===== for（初始化 + 条件判断 + 回跳 goto）=====
         for (int j = 0; j < 2; j++) {
-            c = c + 1;
+            c = c + 2;
         }
 
         // ===== if 嵌套（多分支）=====

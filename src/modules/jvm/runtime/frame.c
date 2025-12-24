@@ -3,33 +3,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-frame_t *frame_new(code_attr_t *codes) {
-    frame_t *frame = malloc(sizeof(frame_t));
-    if(!frame) {
+frame_t *frame_new(attribute_t *codes, int is_static) {
+    u2 max_stack = parse_to_u2(codes->info);
+    u2 max_locals = parse_to_u2(codes->info + 2);
+    // 需要存一个this
+    if(!is_static) max_locals++;
+    u4 code_length = parse_to_u4(codes->info + 4);
+    size_t frame_size = sizeof(frame_t);
+
+    char *frame_memory = malloc(frame_size + max_locals * sizeof(slot_t) + max_stack * sizeof(slot_t));
+    if(!frame_memory) {
         perror("create frame error by malloc");
-        exit(1);
+        abort();
     }
-    if(codes) {
-        frame->code = codes->code;
-        frame->code_length = codes->code_length;
-        frame->local_var_size = codes->max_locals;
-        frame->operand_stack_size = codes->max_stack;
-        if(codes->max_locals > 0) {
-            frame->local_vars = calloc(codes->max_locals, sizeof(slot_t));
-            if(!frame->local_vars) {
-                perror("create frame local vars error by calloc");
-                abort();
-            }
-        }
-        if(codes->max_stack > 0) {
-            frame->operand_stack = calloc(codes->max_stack, sizeof(slot_t));
-            if(!frame->operand_stack) {
-                perror("create frame operand stack error by calloc");
-                abort();
-            }
-        }
-    }else{
-        frame->code_length = 0;
+    frame_t *frame = (frame_t *)frame_memory;
+    frame->code = codes->info + 8;
+    frame->code_length = code_length;
+    frame->local_var_size = max_locals;
+    frame->operand_stack_size = max_stack;
+    if(max_locals > 0) {
+        frame->local_vars = (slot_t*)(frame_memory + frame_size);
+    }
+    if(max_stack > 0) {
+        frame->operand_stack = (slot_t*)(frame_memory + frame_size + max_locals);
     }
     frame->sp = 0;
     frame->pc = 0;
