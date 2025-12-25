@@ -250,6 +250,7 @@ void interpret(frame_t *frame, class_t *class) {
             case OPCODE_ldc: {   // 0x12,  // 18 
                 u1 index = frame->code[frame->pc+1];
                 cp_info_t cp_info = cp_pools[index];
+                printf("ldc cp_info.tag: %d\n", cp_info.tag);
                 if(is_cp_info_tag(cp_info.tag, CONSTANT_Integer)) {
                     push_int(frame, (int32_t)parse_to_u4(cp_info.info));
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_Float)) {
@@ -1059,7 +1060,7 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index = (index1 << 8) | index2;
                 printf("[WARN] getstatic #%d ignored.\n", index);
                 // todo 所有方法调用都暂时用一个对象占位
-                push_int(frame, 0xdeadbeef);
+                push(frame)->ref = calloc(1, sizeof(object_t));
                 frame->pc += 3;
                 break;
             }
@@ -1171,21 +1172,27 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_info_t info = cp_pools[index];
-                check_cp_info_tag(info.tag, CONSTANT_Methodref);
-                info = cp_pools[parse_to_u2(info.info + 2)];
-                check_cp_info_tag(info.tag, CONSTANT_NameAndType);
-                char *name = get_utf8(&cp_pools[parse_to_u2(info.info)]);
-                u2 arg_slot_count = slot_count_from_desciptor(get_utf8(&cp_pools[parse_to_u2(info.info + 2)]));
-                for(int i=0;i<arg_slot_count;i++) {
-                    int32_t arg = pop_int(frame);
-                    if(strcmp(name, "println") == 0) {
-                        printf("%d\n", arg);
+                cp_info_t cp_methodref = cp_pools[index];
+                check_cp_info_tag(cp_methodref.tag, CONSTANT_Methodref);
+                cp_info_t cp_nametype = cp_pools[parse_to_u2(cp_methodref.info + 2)];
+                check_cp_info_tag(cp_nametype.tag, CONSTANT_NameAndType);
+                cp_info_t cp_class = cp_pools[parse_to_u2(cp_methodref.info)];
+                char *class_name = get_utf8(&cp_pools[parse_to_u2(cp_class.info)]);
+                char *name = get_utf8(&cp_pools[parse_to_u2(cp_nametype.info)]);
+                char *descriptor = get_utf8(&cp_pools[parse_to_u2(cp_nametype.info + 2)]);
+                u2 arg_slot_count = slot_count_from_desciptor(descriptor);
+                printf("invoke special, class name: %s, method name: %s %s, slot count: %d\n", class_name, name, descriptor, arg_slot_count);
+                object_t *ref = pop(frame)->ref;
+                if(strcmp(class_name, "java/lang/String") == 0) {
+                    if(strcmp(name, "length") == 0) {
+                        push_int(frame, strlen(ref->strings));
                     }
                 }
-                int32_t obj = pop_int(frame);
+                if(strcmp(name, "println") == 0) {
+                    int32_t arg = pop_int(frame);
+                    printf("%d\n", arg);
+                }
                 // todo 暂时用不到
-                (void) obj;
                 frame->pc += 3;
                 break;
             }
@@ -1345,12 +1352,33 @@ void interpret(frame_t *frame, class_t *class) {
                             abort();
             }
             case OPCODE_checkcast: {   // 0xc0,       // 192
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                u1 high = frame->code[frame->pc+1];
+                u1 low = frame->code[frame->pc+2];
+                u2 index = (high << 8) | low;
+                cp_info_t cp_info = cp_pools[index];
+
+                // todo 暂时跳过
+                frame->pc +=3;
+                break;
             }
             case OPCODE_instanceof: {   // 0xc1,       // 193
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                u1 high = frame->code[frame->pc+1];
+                u1 low = frame->code[frame->pc+2];
+                u2 index = (high << 8) | low;
+                cp_info_t cp_info = cp_pools[index];
+                object_t *ref = pop(frame)->ref;
+                if(ref == NULL) {
+                    push_int(frame, 0);
+                }else {
+                    char *class_name = get_utf8(&cp_pools[parse_to_u2(cp_info.info)]);
+                    if(strcmp(class_name, ref->class->class_name) == 0) {
+                        push_int(frame, 1);
+                    }else {
+                        push_int(frame, 0);
+                    }
+                }
+                frame->pc += 3;
+                break;
             }
             case OPCODE_monitorenter: {   // 0xc2,       // 194
             fprintf(stderr, "unimpleted opcode: %d\n", opcode);
@@ -1398,6 +1426,8 @@ void interpret(frame_t *frame, class_t *class) {
                     frame->pc += jump_offset;
                 }
                 break;
+            // fprintf(stderr, "unimpleted opcode: %d\n", opcode);
+                            // abort();
             }
             case OPCODE_lookupswitch: {   // 0xab,       // 171 
             fprintf(stderr, "unimpleted opcode: %d\n", opcode);

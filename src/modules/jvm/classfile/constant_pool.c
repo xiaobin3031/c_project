@@ -82,7 +82,7 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
 
 char *get_utf8(cp_info_t *cp_info) {
     check_cp_info_tag(cp_info->tag, CONSTANT_Utf8);
-    return cp_info->info + 2;
+    return (char*)(cp_info->info + 2);
 }
 
 
