@@ -28,6 +28,12 @@ class_t *load_class(const char *class_file) {
     abort();
 }
 
+void link_class(class_t *class) { 
+}
+
+void init_class(class_t *class) {
+}
+
 void run(const char *main_class_file, project_t *project) {
     g_project = project;
     g_class_list = arraylist_new(10);
