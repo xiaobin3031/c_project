@@ -52,17 +52,30 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 info.info = read_bytes(file, 4);
                 break;
             }
+            case CONSTANT_Long:
+            case CONSTANT_Double: {
+                info.info = read_bytes(file, 8);
+                cps[i] = info;
+                i++;
+
+                cps[i].tag = 0;
+                cps[i].info = NULL;
+                break;
+            }
+            case CONSTANT_String:
             case CONSTANT_Class: {
                 info.info = read_bytes(file, 2);
                 break;
             }
             // todo 后续扩展更多tag
             default: {
-                printf("unknown tag type: %d\n", tag);
+                printf("constant pool unknown tag type: %d\n", tag);
                 abort();
             }
         }
-        cps[i] = info;
+        if(tag != CONSTANT_Long && tag != CONSTANT_Double) {
+            cps[i] = info;
+        }
     }
     return cps;
 }

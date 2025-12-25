@@ -20,6 +20,10 @@ class_t *load_class(const char *class_file) {
         return class;
     }
 
+    if(strcmp(class_file, "java/lang/String") == 0) {
+        return calloc(1, sizeof(class_t));
+    }
+
     fprintf(stderr, "class file not found: %s\n", class_file);
     abort();
 }
