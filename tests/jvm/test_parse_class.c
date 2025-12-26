@@ -49,10 +49,10 @@ int test_slot_count() {
 }
 
 int junit_test_create() {
-    char *src_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-admin/target/classes/com/shanshan/order/controller";
-    char *dest_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-coverage/src/test/java/com/shanshan/mock_test/order_admin";
-    char *package_name = "com.shanshan.mock_test.order_admin";
-    create_junit_test_class(src_class_dir, dest_class_dir, package_name);
+    // char *src_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-admin/target/classes/com/shanshan/order/controller";
+    // char *dest_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-coverage/src/test/java/com/shanshan/mock_test/order_admin";
+    // char *package_name = "com.shanshan.mock_test.order_admin";
+    // create_junit_test_class(src_class_dir, dest_class_dir, package_name);
     return SUCCESS;
 }
 
