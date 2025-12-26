@@ -48,9 +48,9 @@ typedef struct {
 } cp_nameandtype_t;
 
 typedef struct {
-    u1 tag;
     u2 class_index;
     u2 name_and_type_index;
+    void *resolved_method;
 } cp_methodref_t;
 
 typedef struct {
@@ -64,6 +64,7 @@ typedef struct {
     u1 *info;
 } cp_info_t;
 
+cp_methodref_t *get_methodref(cp_info_t *cp_info);
 
 int is_cp_info_tag(u1 tag, u1 special_tag);
 void check_cp_info_tag(u1 tag, u1 special_tag);

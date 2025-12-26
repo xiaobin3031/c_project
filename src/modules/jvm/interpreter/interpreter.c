@@ -91,16 +91,20 @@ static slot_t *get_local(frame_t *frame, u2 index) {
 }
 
 method_t *find_method(class_t *class, cp_info_t *info) {
-    check_cp_info_tag(info->tag, CONSTANT_Methodref);
-    u2 index = (info->info[2] << 8) | info->info[3];
-    cp_info_t nametype = class->cp_pools[index];
+    cp_methodref_t *methodref = get_methodref(info);
+    if(methodref->resolved_method != NULL) {
+        return (method_t*) methodref->resolved_method;
+    }
+    cp_info_t nametype = class->cp_pools[methodref->name_and_type_index];
     check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
     u2 name_index = (nametype.info[0] << 8) | nametype.info[1];
     u2 descriptor_index = (nametype.info[2] << 8) | nametype.info[3];
     for(int i=0;i<class->methods_count;i++) {
         method_t *method = &class->methods[i];
-        if(method->name_index == name_index && method->descriptor_index == descriptor_index)
+        if(method->name_index == name_index && method->descriptor_index == descriptor_index) {
+            methodref->resolved_method = method;
             return method;
+        }
     }
     char *method_name = get_utf8(&class->cp_pools[name_index]);
     fprintf(stderr, "cannot find method: %s\n", method_name);
@@ -1172,11 +1176,10 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_info_t cp_methodref = cp_pools[index];
-                check_cp_info_tag(cp_methodref.tag, CONSTANT_Methodref);
-                cp_info_t cp_nametype = cp_pools[parse_to_u2(cp_methodref.info + 2)];
+                cp_methodref_t *methodref = get_methodref(&cp_pools[index]);
+                cp_info_t cp_nametype = cp_pools[methodref->name_and_type_index];
                 check_cp_info_tag(cp_nametype.tag, CONSTANT_NameAndType);
-                cp_info_t cp_class = cp_pools[parse_to_u2(cp_methodref.info)];
+                cp_info_t cp_class = cp_pools[methodref->class_index];
                 char *class_name = get_utf8(&cp_pools[parse_to_u2(cp_class.info)]);
                 char *name = get_utf8(&cp_pools[parse_to_u2(cp_nametype.info)]);
                 char *descriptor = get_utf8(&cp_pools[parse_to_u2(cp_nametype.info + 2)]);
@@ -1200,36 +1203,17 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index1 = frame->code[frame->pc+1];
                 u2 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_info_t methodref = cp_pools[index];
-                check_cp_info_tag(methodref.tag, CONSTANT_Methodref);
+                cp_methodref_t *methodref = get_methodref(&cp_pools[index]);
+                method_t *call_method = find_method(class, &cp_pools[index]);
+                char *m_name = get_utf8(&cp_pools[call_method->name_index]);
 
                 // class index
-                index = parse_to_u2(methodref.info);
-                cp_info_t classref = cp_pools[index];
+                cp_info_t classref = cp_pools[methodref->class_index];
                 check_cp_info_tag(classref.tag, CONSTANT_Class);
                 index = parse_to_u2(classref.info);
                 char *c_name = get_utf8(&cp_pools[index]);
                 printf("class name: %s\n", c_name);
 
-                // name and type index
-                index = parse_to_u2(methodref.info + 2);
-                cp_info_t nametype = cp_pools[index];
-                check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
-                u2 name_index = (nametype.info[0] << 8) | nametype.info[1];
-                u2 descriptor_index = (nametype.info[2] << 8) | nametype.info[3];
-                method_t *call_method;
-                for(int i=0;i<class->methods_count;i++) {
-                    method_t *method = &class->methods[i];
-                    if(method->name_index == name_index && method->descriptor_index == descriptor_index) {
-                        call_method = method;
-                        break;
-                    }
-                }
-                char *m_name = get_utf8(&cp_pools[name_index]);
-                if(call_method == NULL) {
-                    fprintf(stderr, "Error: method not found: %s\n", m_name);
-                    abort();
-                }
                 // 1. 获取方法名和类名
                 // 假设你有办法从 method 拿到它所属的 class 结构
                 // char *c_name = get_class_name(method->owner_class); 

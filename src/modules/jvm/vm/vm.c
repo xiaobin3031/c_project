@@ -13,13 +13,29 @@ static project_t *g_project;
 static arraylist *g_class_list;
 
 class_t *load_class(const char *class_file) {
+    // load from cache
+    class_t *class = NULL;
+    for(size_t i=0;i<g_class_list->size;i++) {
+        class_t *tmp = (class_t*)arraylist_get(g_class_list, i);
+        if(strcmp(tmp->class_name, class_file) == 0) {
+            class = tmp;
+            break;
+        }
+    }
+    if(class) return class;
+
     char full_path[1024];
     snprintf(full_path, sizeof(full_path), "%s/%s.class", g_project->root_path, class_file);
-    class_t *class = read_class_file(full_path);
+    class = read_class_file(full_path);
     if(class) {
+        link_class(class);
+        init_class(class);
+
+        arraylist_add(g_project->class_file_path, class);
         return class;
     }
 
+    // todo 这里后续要删掉
     if(strcmp(class_file, "java/lang/String") == 0) {
         return calloc(1, sizeof(class_t));
     }

@@ -5,7 +5,10 @@
 #include <string.h>
 
 
-
+cp_methodref_t *get_methodref(cp_info_t *cp_info) { 
+    check_cp_info_tag(cp_info->tag, CONSTANT_Methodref);
+    return (cp_methodref_t *)cp_info->info;
+}
 
 int is_cp_info_tag(u1 tag, u1 special_tag) {
     return tag == special_tag ? 1 : 0;
@@ -47,9 +50,16 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 info.info = read_bytes(file, 3);
                 break;
             }
+            case CONSTANT_Methodref: {
+                cp_methodref_t *methodref = malloc(sizeof(cp_methodref_t));
+                methodref->class_index = read_u2(file);
+                methodref->name_and_type_index = read_u2(file);
+                methodref->resolved_method = NULL;
+                info.info = (u1*) methodref;
+                break;
+            }
             case CONSTANT_Integer: 
             case CONSTANT_NameAndType:
-            case CONSTANT_Methodref:
             case CONSTANT_Fieldref:
             case CONSTANT_InterfaceMethodref:
             case CONSTANT_Dynamic:
