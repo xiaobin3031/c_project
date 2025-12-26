@@ -50,14 +50,14 @@ typedef struct {
 typedef struct {
     u2 class_index;
     u2 name_and_type_index;
-    void *resolved_method;
-} cp_methodref_t;
+    void *resolved_field;
+} cp_fieldref_t;
 
 typedef struct {
-    u1 tag;
     u2 class_index;
     u2 name_and_type_index;
-} cp_fieldref_t;
+    void *resolved_method;
+} cp_methodref_t;
 
 typedef struct {
     u1 tag;
