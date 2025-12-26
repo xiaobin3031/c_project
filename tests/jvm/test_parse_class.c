@@ -4,6 +4,7 @@
 #include "../../src/modules/jvm/vm/vm.h"
 #include "../../src/modules/jvm/project/project.h"
 #include "../../src/modules/jvm/utils/slots.h"
+#include "../../src/modules/jvm/local_tools/junit_test.h"
 #include <string.h>
 
 int test_parse_class() {
@@ -47,8 +48,17 @@ int test_slot_count() {
     return SUCCESS;
 }
 
+int junit_test_create() {
+    char *src_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-admin/target/classes/com/shanshan/order/controller";
+    char *dest_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-coverage/src/test/java/com/shanshan/mock_test/order_admin";
+    char *package_name = "com.shanshan.mock_test.order_admin";
+    create_junit_test_class(src_class_dir, dest_class_dir, package_name);
+    return SUCCESS;
+}
+
 test_case_t test_parse_class_cases[] = {
     {"test parse class magic", test_parse_class},
     {"test slot count", test_slot_count},
+    {"junit test create", junit_test_create},
     {NULL, NULL}
 };

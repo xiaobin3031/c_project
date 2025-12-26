@@ -42,10 +42,9 @@ project_t *load_project(const char *root_path) {
         }
 
         if(S_ISREG(st.st_mode)) {
-            continue;
+            arraylist_add(project->class_file_path, strdup(full_path));
         }
 
-        arraylist_add(project->class_file_path, strdup(full_path));
     }
 
     return project;

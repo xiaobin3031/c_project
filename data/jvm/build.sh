@@ -1,2 +1,2 @@
 rm -R -f *.class
-javac -g:none Main.java a/A.java
+javac -g:none -parameters Main.java a/A.java

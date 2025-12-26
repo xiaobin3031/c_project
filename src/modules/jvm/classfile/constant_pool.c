@@ -43,11 +43,17 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 info.info = utf8_bytes;
                 break;
             }
+            case CONSTANT_MethodHandle: {
+                info.info = read_bytes(file, 3);
+                break;
+            }
             case CONSTANT_Integer: 
             case CONSTANT_NameAndType:
             case CONSTANT_Methodref:
             case CONSTANT_Fieldref:
             case CONSTANT_InterfaceMethodref:
+            case CONSTANT_Dynamic:
+            case CONSTANT_InvokeDynamic:
             case CONSTANT_Float: {
                 info.info = read_bytes(file, 4);
                 break;
@@ -62,6 +68,7 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 cps[i].info = NULL;
                 break;
             }
+            case CONSTANT_MethodType:
             case CONSTANT_String:
             case CONSTANT_Class: {
                 info.info = read_bytes(file, 2);

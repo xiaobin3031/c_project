@@ -29,7 +29,7 @@ attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
         }
         else {
             printf("unknown attribute [%s]\n", attr_name);
-            abort();
+            // abort();
         }
         attrs[i] = attr;
     }

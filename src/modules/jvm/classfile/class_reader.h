@@ -26,6 +26,8 @@ typedef struct {
 
     char *class_name;
 
+    char *class_simple_name;
+
     // 属性的slot总数
     u2 total_field_slots;
 } class_t;

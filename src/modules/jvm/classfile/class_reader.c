@@ -45,6 +45,20 @@ class_t *read_class_file(const char *path) {
     cp_info_t cp_info = class->cp_pools[class->this_class];
     check_cp_info_tag(cp_info.tag, CONSTANT_Class);
     class->class_name = get_utf8(&class->cp_pools[parse_to_u2(cp_info.info)]);
+    char *class_name = strdup(class->class_name);
+    char *ptr = class_name;
+    char *simple_name = ptr;
+    while(*ptr != '\0') {
+        if(*ptr == '/') {
+            simple_name = ptr + 1;
+        }else if(*ptr == '.'){
+            *ptr = '\0';
+            break;
+        }
+        ptr++;
+    }
+    class->class_simple_name = strdup(simple_name);
+    free(class_name);
 
     if(class->fields_count > 0) {
         u2 total_field_slots = 0;
