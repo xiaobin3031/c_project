@@ -60,7 +60,10 @@ typedef struct {
     u1 *info;
 } cp_info_t;
 
-cp_methodref_t *get_methodref(cp_info_t *cp_info);
+cp_methodref_t *get_cp_methodref(cp_info_t *cp_info);
+cp_class_t *get_cp_class(cp_info_t *cp_info);
+cp_fieldref_t *get_cp_fieldref(cp_info_t *cp_info);
+cp_nameandtype_t *get_cp_nameandtype(cp_info_t *cp_info);
 
 int is_cp_info_tag(u1 tag, u1 special_tag);
 void check_cp_info_tag(u1 tag, u1 special_tag);

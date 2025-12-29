@@ -30,23 +30,30 @@ static field_t *find_static_field(cp_info_t *info) {
 }
 
 method_t *find_method(class_t *class, cp_info_t *info) {
-    cp_methodref_t *methodref = get_methodref(info);
+    cp_methodref_t *methodref = get_cp_methodref(info);
     if(methodref->resolved_method != NULL) {
         return (method_t*) methodref->resolved_method;
     }
-    cp_info_t nametype = class->cp_pools[methodref->name_and_type_index];
-    check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
-    u2 name_index = (nametype.info[0] << 8) | nametype.info[1];
-    u2 descriptor_index = (nametype.info[2] << 8) | nametype.info[3];
-    for(int i=0;i<class->methods_count;i++) {
-        method_t *method = &class->methods[i];
-        if(method->name_index == name_index && method->descriptor_index == descriptor_index) {
+
+    cp_class_t *target_cp_class = get_cp_class(&class->cp_pools[methodref->class_index]);
+    char *target_class_name = get_utf8(&class->cp_pools[target_cp_class->name_index]);
+    class_t *target_class = load_class(target_class_name);
+    cp_nameandtype_t *nametype = get_cp_nameandtype(&class->cp_pools[methodref->name_and_type_index]);
+    char *method_name = get_utf8(&class->cp_pools[nametype->name_index]);
+    char *method_descriptor = get_utf8(&class->cp_pools[nametype->descriptor_index]);
+    printf("Resolving method %s %s\n", method_name, method_descriptor);
+    printf("target class %s\n", target_class->class_name);
+    for(int i=0;i<target_class->methods_count;i++) {
+        method_t *method = &target_class->methods[i];
+        char *method_name_in_class = get_utf8(&target_class->cp_pools[method->name_index]);
+        char *method_descriptor_in_class = get_utf8(&target_class->cp_pools[method->descriptor_index]);
+        printf("  Checking method %s %s\n", method_name_in_class, method_descriptor_in_class);
+        if(strcmp(method_name, method_name_in_class) == 0 && strcmp(method_descriptor, method_descriptor_in_class) == 0) {
             methodref->resolved_method = method;
             return method;
         }
     }
-    char *method_name = get_utf8(&class->cp_pools[name_index]);
-    fprintf(stderr, "cannot find method: %s\n", method_name);
+    fprintf(stderr, "cannot find method: %s of class: %s\n", method_name, class->class_name);
     abort();
 }
 
@@ -985,17 +992,14 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 i1 = frame->code[frame->pc+1];
                 u1 i2 = frame->code[frame->pc+2];
                 u2 index = (i1 << 8) | i2;
-                cp_info_t fieldref = cp_pools[index];
-                check_cp_info_tag(fieldref.tag, CONSTANT_Fieldref);
-                cp_info_t nametype = cp_pools[parse_to_u2(fieldref.info + 2)];
-                check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
-                char *field_name = get_utf8(&cp_pools[parse_to_u2(nametype.info)]);
-                char *field_descriptor = get_utf8(&cp_pools[parse_to_u2(nametype.info + 2)]);
+                cp_fieldref_t *fieldref = get_cp_fieldref(&cp_pools[index]);
+                cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
+                char *field_name = get_utf8(&cp_pools[nameandtype->name_index]);
+                char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
 
                 // 找到field所在的class，获取field在实例对象中的位置和属性数量
-                cp_info_t target_classref = cp_pools[parse_to_u2(fieldref.info)];
-                check_cp_info_tag(target_classref.tag, CONSTANT_Class);
-                class_t *target_class = load_class(get_utf8(&cp_pools[parse_to_u2(target_classref.info)]));
+                cp_class_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
+                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]));
                 field_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
                     field_t *field = &target_class->fields[i];
@@ -1029,17 +1033,14 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 i1 = frame->code[frame->pc+1];
                 u1 i2 = frame->code[frame->pc+2];
                 u2 index = (i1 << 8) | i2;
-                cp_info_t fieldref = cp_pools[index];
-                check_cp_info_tag(fieldref.tag, CONSTANT_Fieldref);
-                cp_info_t nametype = cp_pools[parse_to_u2(fieldref.info + 2)];
-                check_cp_info_tag(nametype.tag, CONSTANT_NameAndType);
-                char *field_name = get_utf8(&cp_pools[parse_to_u2(nametype.info)]);
-                char *field_descriptor = get_utf8(&cp_pools[parse_to_u2(nametype.info + 2)]);
+                cp_fieldref_t *fieldref = get_cp_fieldref(&cp_pools[index]);
+                cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
+                char *field_name = get_utf8(&cp_pools[nameandtype->name_index]);
+                char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
 
                 // 找到field所在的class，获取field在实例对象中的位置和属性数量
-                cp_info_t target_classref = cp_pools[parse_to_u2(fieldref.info)];
-                check_cp_info_tag(target_classref.tag, CONSTANT_Class);
-                class_t *target_class = load_class(get_utf8(&cp_pools[parse_to_u2(target_classref.info)]));
+                cp_class_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
+                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]));
                 field_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
                     field_t *field = &target_class->fields[i];
@@ -1061,9 +1062,7 @@ void interpret(frame_t *frame, class_t *class) {
                 for(u2 i =0;i<target_field->slot_count;i++) {
                     slot_t *slot = pop(frame);
                     argc[i].bits = slot->bits;
-                    if(slot->ref) {
-                        memcpy(argc[i].ref, slot->ref, sizeof(object_t));
-                    }
+                    argc[i].ref = slot->ref;
                 }
 
                 // 把slot的信息写到实例对象中
@@ -1073,9 +1072,7 @@ void interpret(frame_t *frame, class_t *class) {
                     slot_t field_slot = ref->fields[target_field->slot_offset_in_class + i];
                     slot_t arg = argc[i];
                     field_slot.bits = arg.bits;
-                    if(arg.ref) {
-                        memcpy(field_slot.ref, arg.ref, sizeof(object_t));
-                    }
+                    field_slot.ref = arg.ref;
                 }
 
                 frame->pc += 3;
@@ -1085,13 +1082,12 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_methodref_t *methodref = get_methodref(&cp_pools[index]);
-                cp_info_t cp_nametype = cp_pools[methodref->name_and_type_index];
-                check_cp_info_tag(cp_nametype.tag, CONSTANT_NameAndType);
-                cp_info_t cp_class = cp_pools[methodref->class_index];
-                char *class_name = get_utf8(&cp_pools[parse_to_u2(cp_class.info)]);
-                char *name = get_utf8(&cp_pools[parse_to_u2(cp_nametype.info)]);
-                char *descriptor = get_utf8(&cp_pools[parse_to_u2(cp_nametype.info + 2)]);
+                cp_methodref_t *methodref = get_cp_methodref(&cp_pools[index]);
+                cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
+                cp_class_t *cp_class = get_cp_class(&cp_pools[methodref->class_index]);
+                char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
+                char *name = get_utf8(&cp_pools[nameandtype->name_index]);
+                char *descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
                 u2 arg_slot_count = slot_count_from_desciptor(descriptor);
                 printf("invoke special, class name: %s, method name: %s %s, slot count: %d\n", class_name, name, descriptor, arg_slot_count);
                 object_t *ref = pop(frame)->ref;
@@ -1112,15 +1108,13 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index1 = frame->code[frame->pc+1];
                 u2 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_methodref_t *methodref = get_methodref(&cp_pools[index]);
+                cp_methodref_t *methodref = get_cp_methodref(&cp_pools[index]);
                 method_t *call_method = find_method(class, &cp_pools[index]);
                 char *m_name = get_utf8(&cp_pools[call_method->name_index]);
 
                 // class index
-                cp_info_t classref = cp_pools[methodref->class_index];
-                check_cp_info_tag(classref.tag, CONSTANT_Class);
-                index = parse_to_u2(classref.info);
-                char *c_name = get_utf8(&cp_pools[index]);
+                cp_class_t *cp_class = get_cp_class(&cp_pools[methodref->class_index]);
+                char *c_name = get_utf8(&cp_pools[cp_class->name_index]);
                 printf("class name: %s\n", c_name);
 
                 // 1. 获取方法名和类名
@@ -1176,7 +1170,8 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index = (index1 << 8) | index2;
                 cp_info_t info = cp_pools[index];
                 check_cp_info_tag(info.tag, CONSTANT_Class);
-                char *class_name = get_utf8(&cp_pools[parse_to_u2(info.info)]);
+                cp_class_t *cp_class = (cp_class_t*)info.info;
+                char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
                 class_t *local_class = load_class(class_name);
                 object_t *ref = calloc(1, sizeof(object_t));
                 ref->class = local_class;

@@ -5,9 +5,24 @@
 #include <string.h>
 
 
-cp_methodref_t *get_methodref(cp_info_t *cp_info) { 
+cp_methodref_t *get_cp_methodref(cp_info_t *cp_info) { 
     check_cp_info_tag(cp_info->tag, CONSTANT_Methodref);
     return (cp_methodref_t *)cp_info->info;
+}
+
+cp_class_t *get_cp_class(cp_info_t *cp_info) {
+    check_cp_info_tag(cp_info->tag, CONSTANT_Class);
+    return (cp_class_t *)cp_info->info;
+}
+
+cp_fieldref_t *get_cp_fieldref(cp_info_t *cp_info) {
+    check_cp_info_tag(cp_info->tag, CONSTANT_Fieldref);
+    return (cp_fieldref_t *)cp_info->info;
+}
+
+cp_nameandtype_t *get_cp_nameandtype(cp_info_t *cp_info) {
+    check_cp_info_tag(cp_info->tag, CONSTANT_NameAndType);
+    return (cp_nameandtype_t *)cp_info->info;
 }
 
 int is_cp_info_tag(u1 tag, u1 special_tag) {

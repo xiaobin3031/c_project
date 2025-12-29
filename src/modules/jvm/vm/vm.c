@@ -53,8 +53,7 @@ static field_t *find_field(class_t *class, cp_info_t *cp_info) {
         }
     }
 
-    fprintf(stderr, "cannot find field[%s] in class %s\n", get_utf8(&class->cp_pools[nametype->name_index]), field_class->class_name);
-    abort();
+    return NULL;
 }
 
 method_t *resolve_method(class_t *class, const char *method_name, const char *method_descriptor) {
@@ -103,8 +102,13 @@ class_t *load_class(const char *class_file) {
     }
 
     // todo 这里后续要删掉
-    if(strcmp(class_file, "java/lang/String") == 0 || strcmp(class_file, "java/lang/System") == 0) {
-        return calloc(1, sizeof(class_t));
+    if(strcmp(class_file, "java/lang/String") == 0 
+        || strcmp(class_file, "java/lang/System") == 0
+        || strcmp(class_file, "java/lang/Object") == 0) {
+        class_t *class = calloc(1, sizeof(class_t));
+        class->class_name = strdup(class_file);
+        arraylist_add(g_project->class_file_path, class);
+        return class;
     }
 
     fprintf(stderr, "ClassFormatError: %s\n", class_file);
@@ -139,7 +143,7 @@ void link_class(class_t *class) {
         cp_info_t *cp_info = &cp_pools[i];
         if(cp_info->tag == CONSTANT_Fieldref) {
             field_t *field = find_field(class, cp_info);
-            if(field->access_flags & FIELD_ACC_STATIC) {
+            if(field != NULL && field->access_flags & FIELD_ACC_STATIC) {
                 // 初始化静态字段
                 char *descriptor = get_utf8(&class->cp_pools[field->descriptor_index]);
                 if(*descriptor == 'J' || *descriptor == 'D') {
