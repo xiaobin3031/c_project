@@ -40,11 +40,21 @@ class_t *read_class_file(const char *path) {
     class->attributes_count = read_u2(class_file);
     class->attributes = read_attributes(class_file, class->attributes_count, class->cp_pools);
 
+    // 判断是否是读取到最后了
+    long cur = ftell(class_file);
+    fseek(class_file, 0, SEEK_END);
+    long end = ftell(class_file);
+    if (cur != end) {
+        fprintf(stderr, "class file %s is not end\n", path);
+        fclose(class_file);
+        return NULL;
+    }
+
     fclose(class_file);
 
     cp_info_t cp_info = class->cp_pools[class->this_class];
     check_cp_info_tag(cp_info.tag, CONSTANT_Class);
-    class->class_name = get_utf8(&class->cp_pools[parse_to_u2(cp_info.info)]);
+    class->class_name = get_utf8(&class->cp_pools[((cp_class_t*)cp_info.info)->name_index]);
     char *class_name = strdup(class->class_name);
     char *ptr = class_name;
     char *simple_name = ptr;
@@ -67,6 +77,8 @@ class_t *read_class_file(const char *path) {
         }
         class->total_field_slots = total_field_slots;
     }
+
+    class->state = CLASS_LOADED;
 
     return class;
 }

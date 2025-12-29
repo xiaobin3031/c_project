@@ -17,6 +17,18 @@
 #include <stdint.h>
 #include <execinfo.h>
 
+
+static field_t *find_static_field(cp_info_t *info) {
+    check_cp_info_tag(info->tag, CONSTANT_Fieldref);
+    cp_fieldref_t *fieldref = (cp_fieldref_t *)info->info;
+    field_t *field = fieldref->resolved_field;
+    if(field != NULL && field->access_flags & FIELD_ACC_STATIC) {
+        return field;
+    }
+    perror("field is not resolved or not static");
+    abort();
+}
+
 method_t *find_method(class_t *class, cp_info_t *info) {
     cp_methodref_t *methodref = get_methodref(info);
     if(methodref->resolved_method != NULL) {
@@ -955,9 +967,13 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                printf("[WARN] getstatic #%d ignored.\n", index);
+                field_t *field = find_static_field(&cp_pools[index]);
+                // printf("[WARN] getstatic #%d ignored.\n", index);
                 // todo 所有方法调用都暂时用一个对象占位
-                push(frame)->ref = calloc(1, sizeof(object_t));
+                slot_t *stack_slot = push(frame);
+                slot_t *field_slot = (slot_t*)field->init_value;
+                stack_slot->bits = field_slot->bits;
+                stack_slot->ref = field_slot->ref;
                 frame->pc += 3;
                 break;
             }

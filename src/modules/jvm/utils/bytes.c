@@ -6,7 +6,7 @@ u1 read_u1(FILE *class_file) {
     u1 r;
     if (fread(&r, 1, 1, class_file) != 1) {
         fprintf(stderr, "read_u1 failed\n");
-        exit(1);
+        abort();
     }
     return r;
 }

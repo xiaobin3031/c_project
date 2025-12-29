@@ -28,6 +28,35 @@ static method_t *resolve_clinit(class_t *class) {
     return NULL;
 }
 
+static char *resolve_class_name(class_t *class, u2 class_index){ 
+    cp_info_t cp_info = class->cp_pools[class_index];
+    check_cp_info_tag(cp_info.tag, CONSTANT_Class);
+    cp_class_t *cp_class = (cp_class_t *)cp_info.info;
+    return get_utf8(&class->cp_pools[cp_class->name_index]);
+}
+
+static field_t *find_field(class_t *class, cp_info_t *cp_info) {
+    cp_fieldref_t *fieldref = (cp_fieldref_t *)cp_info->info;
+    char *class_name = resolve_class_name(class, fieldref->class_index);
+    class_t *field_class = load_class(class_name);
+    cp_info_t local_cp_info = class->cp_pools[fieldref->name_and_type_index];
+    check_cp_info_tag(local_cp_info.tag, CONSTANT_NameAndType);
+    cp_nameandtype_t *nametype = (cp_nameandtype_t *)local_cp_info.info;
+    char *name = get_utf8(&class->cp_pools[nametype->name_index]);
+    char *desc = get_utf8(&class->cp_pools[nametype->descriptor_index]);
+    for(u2 i = 0; i < field_class->fields_count; i++) { 
+        field_t *field = &field_class->fields[i];
+        char *field_name = get_utf8(&field_class->cp_pools[field->name_index]);
+        char *field_descriptor = get_utf8(&field_class->cp_pools[field->descriptor_index]);
+        if(strcmp(name, field_name) == 0 && strcmp(desc, field_descriptor) == 0) {
+            return field;
+        }
+    }
+
+    fprintf(stderr, "cannot find field[%s] in class %s\n", get_utf8(&class->cp_pools[nametype->name_index]), field_class->class_name);
+    abort();
+}
+
 method_t *resolve_method(class_t *class, const char *method_name, const char *method_descriptor) {
     for(int i=0;i<class->methods_count;i++) {
         method_t *method = &class->methods[i];
@@ -58,6 +87,14 @@ class_t *load_class(const char *class_file) {
     snprintf(full_path, sizeof(full_path), "%s/%s.class", g_project->root_path, class_file);
     class = read_class_file(full_path);
     if(class) {
+        if(class->major_version != 61) {
+            perror("UnsupportedClassVersionError");
+            abort();
+        }
+        if(strcmp(class->class_name, class_file) != 0) {
+            fprintf(stderr, "NoClassDefFoundError: %s\n", class_file);
+            abort();
+        }
         link_class(class);
         init_class(class);
 
@@ -66,22 +103,86 @@ class_t *load_class(const char *class_file) {
     }
 
     // todo 这里后续要删掉
-    if(strcmp(class_file, "java/lang/String") == 0) {
+    if(strcmp(class_file, "java/lang/String") == 0 || strcmp(class_file, "java/lang/System") == 0) {
         return calloc(1, sizeof(class_t));
     }
 
-    fprintf(stderr, "class file not found: %s\n", class_file);
+    fprintf(stderr, "ClassFormatError: %s\n", class_file);
     abort();
 }
 
 void link_class(class_t *class) { 
+    if(class->state < CLASS_LOADED) {
+        fprintf(stderr, "class %s is not loaded yet\n", class->class_name);
+        abort();
+    }
     if(class->state >= CLASS_LINKED) {
         return;
     }
     // todo verify
+    if(class->access_flags & CLASS_ACC_INTERFACE) {
+        // super class必须是object
+        if(class->super_class <= 0) {
+            fprintf(stderr, "Interface %s's super class must be java/lang/Object\n", class->class_name);
+            abort();
+        }
+        char *super_name = get_utf8(&class->cp_pools[class->super_class]);
+        if(strcmp(super_name, "java/lang/Object") != 0) {
+            fprintf(stderr, "Interface %s's super class must be java/lang/Object\n", class->class_name);
+            abort();
+        }
+    }
+
+    // create static fields
+    cp_info_t *cp_pools = class->cp_pools;
+    for(u2 i=1;i<class->constant_pool_count;i++) {
+        cp_info_t *cp_info = &cp_pools[i];
+        if(cp_info->tag == CONSTANT_Fieldref) {
+            field_t *field = find_field(class, cp_info);
+            if(field->access_flags & FIELD_ACC_STATIC) {
+                // 初始化静态字段
+                char *descriptor = get_utf8(&class->cp_pools[field->descriptor_index]);
+                if(*descriptor == 'J' || *descriptor == 'D') {
+                    if(field->slot_count != 2) {
+                        fprintf(stderr, "field %s descriptor %s slot count mismatch\n", get_utf8(&class->cp_pools[field->name_index]), descriptor);
+                        abort();
+                    }
+                }else {
+                    if(field->slot_count != 1) {
+                        fprintf(stderr, "field %s descriptor %s slot count mismatch\n", get_utf8(&class->cp_pools[field->name_index]), descriptor);
+                        abort();
+                    }
+                }
+                slot_t *slot = malloc(sizeof(slot_t) * field->slot_count);
+                // todo 初始化slot
+                switch(*descriptor) {
+                    case 'D':
+                    case 'J':
+                        slot[0].bits = 0;
+                        slot[0].ref = NULL;
+                        slot[1].bits = 0;
+                        slot[1].ref = NULL;
+                        break;
+                    default:
+                        slot->bits = 0;
+                        slot->ref = NULL;
+                        break;
+                }
+
+                // 设置到cp_fieldref中
+                field->init_value = slot;
+            }
+        }
+    }
+
+    class->state = CLASS_LINKED;
 }
 
 void init_class(class_t *class) {
+    if(class->state < CLASS_LINKED) {
+        fprintf(stderr, "class %s is not linked yet\n", class->class_name);
+        abort();
+    }
     if(class->state >= CLASS_INITIALIZED) {
         return;
     }
@@ -90,14 +191,13 @@ void init_class(class_t *class) {
         pthread_mutex_unlock(&class->lock);
         return;
     }
-    // todo clinit
 
     class->state = CLASS_INITING;
 
     if(class->super_class != 0) {
         cp_info_t super_class_info = class->cp_pools[class->super_class];
         check_cp_info_tag(super_class_info.tag, CONSTANT_Class);
-        char *super_class_name = get_utf8(&class->cp_pools[parse_to_u2(super_class_info.info)]);
+        char *super_class_name = resolve_class_name(class, class->super_class);
         if(strcmp(super_class_name, "java/lang/Object") != 0) 
             load_class(super_class_name);
     }

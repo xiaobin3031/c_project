@@ -27,8 +27,6 @@ field_t *read_fields(FILE *file, u2 field_count, cp_info_t *cp_pools) {
 }
 
 
-
-
 void field_free(field_t *fields, u2 field_count) {
     // todo free
 }

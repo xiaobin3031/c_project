@@ -58,9 +58,22 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 info.info = (u1*) methodref;
                 break;
             }
+            case CONSTANT_Fieldref: {
+                cp_fieldref_t *fieldref = malloc(sizeof(cp_fieldref_t));
+                fieldref->class_index = read_u2(file);
+                fieldref->name_and_type_index = read_u2(file);
+                fieldref->resolved_field = NULL;
+                info.info = (u1*) fieldref;
+                break;
+            }
+            case CONSTANT_NameAndType: {
+                cp_nameandtype_t *nameandtype = malloc(sizeof(cp_nameandtype_t));
+                nameandtype->name_index = read_u2(file);
+                nameandtype->descriptor_index = read_u2(file);
+                info.info = (u1*) nameandtype;
+                break;
+            }
             case CONSTANT_Integer: 
-            case CONSTANT_NameAndType:
-            case CONSTANT_Fieldref:
             case CONSTANT_InterfaceMethodref:
             case CONSTANT_Dynamic:
             case CONSTANT_InvokeDynamic:
@@ -78,9 +91,15 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 cps[i].info = NULL;
                 break;
             }
+            case CONSTANT_Class: {
+                cp_class_t *class = malloc(sizeof(cp_class_t));
+                class->name_index = read_u2(file);
+                info.info = (u1*) class;
+                break;
+            }
             case CONSTANT_MethodType:
             case CONSTANT_String:
-            case CONSTANT_Class: {
+             {
                 info.info = read_bytes(file, 2);
                 break;
             }

@@ -56,9 +56,18 @@ int junit_test_create() {
     return SUCCESS;
 }
 
+int junit_test_class_init() {
+
+    project_t *project = load_project("../data/jvm");
+
+    run("MainInit", project);
+    return SUCCESS;
+}
+
 test_case_t test_parse_class_cases[] = {
     {"test parse class magic", test_parse_class},
     {"test slot count", test_slot_count},
     {"junit test create", junit_test_create},
+    {"junit test class init", junit_test_class_init},
     {NULL, NULL}
 };

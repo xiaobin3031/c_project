@@ -26,23 +26,19 @@ typedef enum {
 } cp_tag;
 
 typedef struct {
-    u1 tag;
     u2 length;
     u1 *bytes;
 } cp_utf8_t;
 
 typedef struct {
-    u1 tag;
     u4 bytes;
 } cp_integer_t;
 
 typedef struct {
-    u1 tag;
     u2 name_index;
 } cp_class_t;
 
 typedef struct {
-    u1 tag;
     u2 name_index;
     u2 descriptor_index;
 } cp_nameandtype_t;
