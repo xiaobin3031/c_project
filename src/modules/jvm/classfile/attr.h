@@ -49,11 +49,29 @@ typedef enum {
 } variable_info_tag;
 
 typedef struct {
+    u2 start_pc;
+    u2 end_pc;
+    u2 handler_pc;
+    u2 catch_type;
+} exception_table_t;
+
+typedef struct {
     u1 tag;
     u2 attribute_name_index;
     u4 attribute_length;
     u1 *info;
 } attribute_t;
+
+typedef struct {
+    u2 max_stack;
+    u2 max_locals;
+    u4 code_length;
+    u1 *code;
+    u2 exception_table_length;
+    exception_table_t *exception_table;
+    u2 attributes_count;
+    attribute_t *attributes;
+} attr_code_t;
 
 int is_attr_tag(u1 tag, u1 special_tag);
 

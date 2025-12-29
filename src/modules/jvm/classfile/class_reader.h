@@ -5,6 +5,15 @@
 #include "../../../core/list/arraylist.h"
 #include "method_info.h"
 #include "field.h"
+#include <pthread.h>
+
+enum class_state {
+    CLASS_UNLOADED = 0,
+    CLASS_LOADED = 1,
+    CLASS_LINKED = 2,
+    CLASS_INITING = 3,
+    CLASS_INITIALIZED = 4
+};
 
 typedef struct {
     u4 magic;
@@ -30,6 +39,10 @@ typedef struct {
 
     // 属性的slot总数
     u2 total_field_slots;
+
+    pthread_mutex_t lock;
+    enum class_state state;
+
 } class_t;
 
 class_t *read_class_file(const char *path);

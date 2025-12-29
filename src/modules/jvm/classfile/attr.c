@@ -19,11 +19,31 @@ attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
         attribute_t attr;
         attr.attribute_name_index = attr_name_index;
         attr.attribute_length = read_u4(file);
-        if(attr.attribute_length > 0) {
+        if(attr.attribute_length > 0 && strcmp(attr_name, "Code") != 0) {
             attr.info = read_bytes(file, attr.attribute_length);
         }
         if(strcmp(attr_name, "Code") == 0) {
             attr.tag = ATTR_CODE;
+            attr_code_t *code_attr = malloc(sizeof(attr_code_t));
+            code_attr->max_stack = read_u2(file);
+            code_attr->max_locals = read_u2(file);
+            code_attr->code_length = read_u4(file);
+            code_attr->code = read_bytes(file, code_attr->code_length);
+            code_attr->exception_table_length = read_u2(file);
+            if(code_attr->exception_table_length > 0) {
+                code_attr->exception_table = malloc(code_attr->exception_table_length * sizeof(exception_table_t));
+                for(u2 j = 0; j < code_attr->exception_table_length; j++) {
+                    code_attr->exception_table[j].start_pc = read_u2(file);
+                    code_attr->exception_table[j].end_pc = read_u2(file);
+                    code_attr->exception_table[j].handler_pc = read_u2(file);
+                    code_attr->exception_table[j].catch_type = read_u2(file);
+                }
+            } else {
+                code_attr->exception_table = NULL;
+            }
+            code_attr->attributes_count = read_u2(file);
+            code_attr->attributes = read_attributes(file, code_attr->attributes_count, cp_pools);
+            attr.info = (u1 *)code_attr;
         } else if(strcmp(attr_name, "StackMapTable") == 0) {
             attr.tag = ATTR_STACK_MAP_TABLE;
         } else if(strcmp(attr_name, "Signature") == 0) {

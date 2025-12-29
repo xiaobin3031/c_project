@@ -9,86 +9,13 @@
 #include "../utils/slots.h"
 #include "../utils/jtype.h"
 #include "../native/string.h"
+#include "../runtime/operand_stack.h"
+#include "../runtime/local_vars.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <execinfo.h>
-
-static slot_t *pop(frame_t *frame) {
-    if(frame->sp <= 0) {
-        dump_frame(frame);
-        perror("stack underflow");
-        abort();
-    }
-    return &frame->operand_stack[--frame->sp];
-}
-static slot_t *push(frame_t *frame) {
-    if(frame->sp >= frame->operand_stack_size) {
-        dump_frame(frame);
-        perror("stack overflow");
-        abort();
-    }
-    return &frame->operand_stack[frame->sp++];
-}
-static int32_t pop_int(frame_t *frame) {
-    return (int32_t) pop(frame)->bits;
-}
-static long pop_long(frame_t *frame) {
-    uint64_t high = pop(frame)->bits;
-    uint64_t low = pop(frame)->bits;
-    return (high << 32) | low;
-}
-static float pop_float(frame_t *frame) {
-    uint32_t bits = pop(frame)->bits;
-    float v;
-    memcpy(&v, &bits, sizeof(float));
-    return v;
-}
-static double pop_double(frame_t *frame) {
-    uint64_t high = pop(frame)->bits;
-    uint64_t low = pop(frame)->bits;
-    uint64_t bits = (high << 32) | low;
-
-    double v;
-    memcpy(&v, &bits, sizeof(double));
-    return v;
-}
-static void push_int(frame_t *frame, int32_t v) {
-    push(frame)->bits = (uint32_t) v;
-}
-static void push_long(frame_t *frame, long v) {
-    uint32_t low = (uint32_t)v;
-    uint32_t high = (uint32_t)(v >> 32);
-    push(frame)->bits = low;
-    push(frame)->bits = high;
-}
-static void push_float(frame_t *frame, float v) {
-    slot_t *slot = push(frame);
-    memcpy(&slot->bits, &v, sizeof(float));
-}
-static void push_double(frame_t *frame, double v) {
-    uint64_t bits;
-    memcpy(&bits, &v, sizeof(double));
-    push(frame)->bits = (uint32_t)bits;
-    push(frame)->bits =  (uint32_t)(bits >> 32);
-}
-static u1 read_code(frame_t *frame) {
-    if(frame->pc >= frame->code_length) {
-        fprintf(stderr, "pc out of range\n");
-        abort();
-    }
-    return frame->code[frame->pc++];
-}
-
-static slot_t *get_local(frame_t *frame, u2 index) {
-    if(index >= frame->local_var_size) {
-        fprintf(stderr, "local var index out of range: %d\n", index);
-        dump_frame(frame);
-        abort();
-    }
-    return &frame->local_vars[index];
-}
 
 method_t *find_method(class_t *class, cp_info_t *info) {
     cp_methodref_t *methodref = get_methodref(info);
@@ -109,40 +36,6 @@ method_t *find_method(class_t *class, cp_info_t *info) {
     char *method_name = get_utf8(&class->cp_pools[name_index]);
     fprintf(stderr, "cannot find method: %s\n", method_name);
     abort();
-}
-
-frame_t *create_frame(method_t *method, frame_t *invoker) {
-    attribute_t *code;
-    for(int i=0;i<method->attributes_count;i++) {
-        attribute_t attr = method->attributes[i];
-        if(is_cp_info_tag(attr.tag, ATTR_CODE)) {
-            code = &attr;
-            break;
-        }
-    }
-    if(!code) {
-        perror("method code not found");
-        abort();
-    }
-    int is_static = method_is_flag(method->access_flags, METHOD_ACC_STATIC);
-    frame_t *frame = frame_new(code, is_static);
-    frame->invoker = invoker;
-    // 复制方法参数
-    if(invoker) {
-        u2 total_slot_count = method->arg_slot_count;
-        printf("total_slot_count: %d\n", total_slot_count);
-        if(!is_static) total_slot_count++;
-        printf("total_slot_count 2: %d\n", total_slot_count);
-
-        // 2️⃣ 再处理参数（arg_slot_count 个 slot）
-        for (int i = total_slot_count - 1; i >= 0; i--) {
-            slot_t *local = get_local(frame, i);
-            slot_t *stack = pop(invoker);
-            local->bits = stack->bits;
-            local->ref = stack->ref;
-        }
-    }
-    return frame;
 }
 
 static void go_to_by_index(frame_t *frame) {
@@ -1219,7 +1112,7 @@ void interpret(frame_t *frame, class_t *class) {
                 // char *c_name = get_class_name(method->owner_class); 
                 printf("invokespecial: %s\n", m_name);
 
-                frame_t *sub_frame = create_frame(call_method, frame);
+                frame_t *sub_frame = frame_new(call_method, frame);
                 slot_t *this_slot = get_local(sub_frame, 0);
     
                 if (this_slot->ref == NULL) {
@@ -1247,7 +1140,7 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index = (index1 << 8) | index2;
                 cp_info_t info = cp_pools[index];
                 method_t *method = find_method(class, &info);
-                frame_t *sub_frame = create_frame(method, frame);
+                frame_t *sub_frame = frame_new(method, frame);
                 interpret(sub_frame, class);
                 frame_free(sub_frame);
                 frame->pc += 3;
@@ -1484,14 +1377,6 @@ void interpret(frame_t *frame, class_t *class) {
                 abort();
         }
     }
-}
-
-void dump_frame(frame_t *frame) {
-    printf("[DUMP] frame: \n");
-    printf("[DUMP] local vars: %d\n", frame->local_var_size);
-    printf("[DUMP] pc: %d / %d\n", frame->pc, frame->code_length);
-    printf("[DUMP] sp: %d / %d\n", frame->sp, frame->operand_stack_size);
-    printf("[DUMP] opcode: %d\n", frame->code[frame->pc]);
 }
 
 void print_operand_stack(frame_t *frame) {

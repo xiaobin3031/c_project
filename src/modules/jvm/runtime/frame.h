@@ -2,6 +2,7 @@
 
 #include "../utils/bytes.h"
 #include "../utils/jtype.h"
+#include "../classfile/method_info.h"
 
 #include <stdint.h>
 
@@ -18,9 +19,11 @@ struct frame_t {
     frame_t *invoker;
 };
 
-frame_t *frame_new(attribute_t *codes, int is_static);
+frame_t *frame_new(method_t *method, frame_t *invoker);
 
 
 
 
 void frame_free(frame_t *frame);
+
+void dump_frame(frame_t *frame);
