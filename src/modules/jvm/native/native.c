@@ -1,5 +1,6 @@
 #include "native.h"
 #include "../../../core/list/arraylist.h"
+#include <string.h>
 
 
 static arraylist *native_methods = NULL;

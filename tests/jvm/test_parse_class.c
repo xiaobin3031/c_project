@@ -4,7 +4,6 @@
 #include "../../src/modules/jvm/vm/vm.h"
 #include "../../src/modules/jvm/project/project.h"
 #include "../../src/modules/jvm/utils/slots.h"
-#include "../../src/modules/jvm/local_tools/junit_test.h"
 #include <string.h>
 
 int test_parse_class() {

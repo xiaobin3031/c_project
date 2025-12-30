@@ -15,7 +15,7 @@ class_t *read_class_file(const char *path) {
 
     class_file = fopen(path, "rb");
     if(!class_file) {
-        perror("class file read error");
+        fprintf(stderr, "class file read error: %s\n", path);
         return NULL;
     }
 

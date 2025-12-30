@@ -1,7 +1,10 @@
+#include "native.h"
 #include "system.h"
 #include "../classfile/class_reader.h"
 #include "../classfile/field.h"
 #include "../utils/jtype.h"
+#include "../runtime/frame.h"
+#include "../runtime/operand_stack.h"
 
 class_t *fake_system_class() { 
     class_t *class = malloc(sizeof(class_t));
@@ -27,6 +30,11 @@ class_t *fake_system_class() {
     return class;
 }
 
+void println_int(frame_t *frame) {
+    int32_t val = pop_int(frame);
+    printf("%d\n", val);
+}
+
 class_t *fake_printstream_class() {
     class_t *class = malloc(sizeof(class_t));
     class->class_name = "java/io/PrintStream";
@@ -34,8 +42,9 @@ class_t *fake_printstream_class() {
     method_t *method = malloc(sizeof(method_t));
     method->name = "println";
     method->descriptor = "(I)V";
-    method->access_flags = METHOD_ACC_PUBLIC;
-    method->arg_slot_count = 2; // this + int parameter
+    method->access_flags = METHOD_ACC_PUBLIC | METHOD_ACC_NATIVE | METHOD_ACC_FINAL;
+    method->arg_slot_count = 1; // this + int parameter
+    register_native(class->class_name, method->name, method->descriptor, println_int);
     class->methods = malloc(sizeof(method_t));
     class->methods[0] = *method;
     return class;

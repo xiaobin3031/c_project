@@ -83,10 +83,10 @@ class_t *load_class(const char *class_file) {
     class = read_class_file(full_path);
     if(class) {
         arraylist_add(g_class_list, class);
-        if(class->major_version != 61) {
-            perror("UnsupportedClassVersionError");
-            abort();
-        }
+        // if(class->major_version != 61) {
+        //     perror("UnsupportedClassVersionError");
+        //     abort();
+        // }
         if(strcmp(class->class_name, class_file) != 0) {
             fprintf(stderr, "NoClassDefFoundError: %s\n", class_file);
             abort();

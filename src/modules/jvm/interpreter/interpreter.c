@@ -9,6 +9,7 @@
 #include "../utils/slots.h"
 #include "../utils/jtype.h"
 #include "../native/string.h"
+#include "../native/native.h"
 #include "../runtime/operand_stack.h"
 #include "../runtime/local_vars.h"
 #include <stdio.h>
@@ -45,6 +46,11 @@ static field_t *find_static_field(cp_info_t *cp_pools, u2 index) {
     printf("static field descriptor: %s\n", field_descriptor);
     perror("field is not resolved or not static");
     abort();
+}
+
+static void run_method(class_t *class, u2 methodref_index) {
+    cp_info_t *cp_info = class->cp_pools;
+    cp_methodref_t *methodref = get_cp_methodref(&cp_info[methodref_index]);
 }
 
 method_t *find_method(class_t *class, cp_info_t *info) {
@@ -1112,6 +1118,7 @@ void interpret(frame_t *frame, class_t *class) {
                 char *descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
                 u2 arg_slot_count = slot_count_from_desciptor(descriptor);
                 printf("invoke special, class name: %s, method name: %s %s, slot count: %d\n", class_name, name, descriptor, arg_slot_count);
+                method_t *method = find_method(class, &cp_pools[index]);
                 if(strcmp(name, "println") == 0) {
                     int32_t arg = pop_int(frame);
                     printf("%d\n", arg);
