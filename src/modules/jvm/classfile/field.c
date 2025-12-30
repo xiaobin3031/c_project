@@ -12,13 +12,15 @@ field_t *read_fields(FILE *file, u2 field_count, cp_info_t *cp_pools) {
     for(int i = 0; i < field_count; i++) { 
         field_t field;
         field.access_flags = read_u2(file);
-        field.name_index = read_u2(file);
-        field.descriptor_index = read_u2(file);
+        u2 name_index = read_u2(file);
+        field.name = get_utf8(&cp_pools[name_index]);
+        u2 descriptor_index = read_u2(file);
+        field.descriptor = get_utf8(&cp_pools[descriptor_index]);
         field.attributes_count = read_u2(file);
         field.attributes = read_attributes(file, field.attributes_count, cp_pools);
 
         field.slot_offset_in_class = offset++;
-        field.slot_count = slot_count_from_desciptor(get_utf8(&cp_pools[field.descriptor_index]));
+        field.slot_count = slot_count_from_desciptor(field.descriptor);
         offset += field.slot_count;
         fields[i] = field;
     }

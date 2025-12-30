@@ -6,6 +6,7 @@
 #include "../interpreter/interpreter.h"
 #include "../project/project.h"
 #include "../../../core/list/arraylist.h"
+#include "../native/system.h"
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
@@ -19,9 +20,7 @@ static arraylist *g_class_list;
 static method_t *resolve_clinit(class_t *class) {
     for(int i=0;i<class->methods_count;i++) {
         method_t *method = &class->methods[i];
-        char *m_name = get_utf8(&class->cp_pools[method->name_index]);
-        char *m_descriptor = get_utf8(&class->cp_pools[method->descriptor_index]);
-        if(strcmp(m_name, "<clinit>") == 0 && strcmp(m_descriptor, "()V") == 0) {
+        if(strcmp(method->name, "<clinit>") == 0 && strcmp(method->descriptor, "()V") == 0) {
             return method;
         }
     }
@@ -35,20 +34,19 @@ static char *resolve_class_name(class_t *class, u2 class_index){
     return get_utf8(&class->cp_pools[cp_class->name_index]);
 }
 
+/**
+ * 查询自己类中的field，用于初始化
+ */
 static field_t *find_field(class_t *class, cp_info_t *cp_info) {
     cp_fieldref_t *fieldref = (cp_fieldref_t *)cp_info->info;
-    char *class_name = resolve_class_name(class, fieldref->class_index);
-    class_t *field_class = load_class(class_name);
     cp_info_t local_cp_info = class->cp_pools[fieldref->name_and_type_index];
     check_cp_info_tag(local_cp_info.tag, CONSTANT_NameAndType);
     cp_nameandtype_t *nametype = (cp_nameandtype_t *)local_cp_info.info;
     char *name = get_utf8(&class->cp_pools[nametype->name_index]);
     char *desc = get_utf8(&class->cp_pools[nametype->descriptor_index]);
-    for(u2 i = 0; i < field_class->fields_count; i++) { 
-        field_t *field = &field_class->fields[i];
-        char *field_name = get_utf8(&field_class->cp_pools[field->name_index]);
-        char *field_descriptor = get_utf8(&field_class->cp_pools[field->descriptor_index]);
-        if(strcmp(name, field_name) == 0 && strcmp(desc, field_descriptor) == 0) {
+    for(u2 i = 0; i < class->fields_count; i++) { 
+        field_t *field = &class->fields[i];
+        if(strcmp(name, field->name) == 0 && strcmp(desc, field->descriptor) == 0) {
             return field;
         }
     }
@@ -59,10 +57,8 @@ static field_t *find_field(class_t *class, cp_info_t *cp_info) {
 method_t *resolve_method(class_t *class, const char *method_name, const char *method_descriptor) {
     for(int i=0;i<class->methods_count;i++) {
         method_t *method = &class->methods[i];
-        char *m_name = get_utf8(&class->cp_pools[method->name_index]);
-        char *m_descriptor = get_utf8(&class->cp_pools[method->descriptor_index]);
-        printf("m_name: %s, m_descriptor: %s\n", m_name, m_descriptor);
-        if(strcmp(m_name, method_name) == 0 && strcmp(m_descriptor, method_descriptor) == 0) {
+        printf("m_name: %s, m_descriptor: %s\n", method->name, method->descriptor);
+        if(strcmp(method->name, method_name) == 0 && strcmp(method->descriptor, method_descriptor) == 0) {
             return method;
         }
     }
@@ -86,6 +82,7 @@ class_t *load_class(const char *class_file) {
     snprintf(full_path, sizeof(full_path), "%s/%s.class", g_project->root_path, class_file);
     class = read_class_file(full_path);
     if(class) {
+        arraylist_add(g_class_list, class);
         if(class->major_version != 61) {
             perror("UnsupportedClassVersionError");
             abort();
@@ -97,7 +94,6 @@ class_t *load_class(const char *class_file) {
         link_class(class);
         init_class(class);
 
-        arraylist_add(g_project->class_file_path, class);
         return class;
     }
 
@@ -123,6 +119,7 @@ void link_class(class_t *class) {
     if(class->state >= CLASS_LINKED) {
         return;
     }
+    printf("link class %s\n", class->class_name);
     // todo verify
     if(class->access_flags & CLASS_ACC_INTERFACE) {
         // super class必须是object
@@ -145,21 +142,20 @@ void link_class(class_t *class) {
             field_t *field = find_field(class, cp_info);
             if(field != NULL && field->access_flags & FIELD_ACC_STATIC) {
                 // 初始化静态字段
-                char *descriptor = get_utf8(&class->cp_pools[field->descriptor_index]);
-                if(*descriptor == 'J' || *descriptor == 'D') {
+                if(*field->descriptor == 'J' || *field->descriptor == 'D') {
                     if(field->slot_count != 2) {
-                        fprintf(stderr, "field %s descriptor %s slot count mismatch\n", get_utf8(&class->cp_pools[field->name_index]), descriptor);
+                        fprintf(stderr, "field %s descriptor %s slot count mismatch\n", field->name, field->descriptor);
                         abort();
                     }
                 }else {
                     if(field->slot_count != 1) {
-                        fprintf(stderr, "field %s descriptor %s slot count mismatch\n", get_utf8(&class->cp_pools[field->name_index]), descriptor);
+                        fprintf(stderr, "field %s descriptor %s slot count mismatch\n", field->name, field->descriptor);
                         abort();
                     }
                 }
                 slot_t *slot = malloc(sizeof(slot_t) * field->slot_count);
                 // todo 初始化slot
-                switch(*descriptor) {
+                switch(*field->descriptor) {
                     case 'D':
                     case 'J':
                         slot[0].bits = 0;
@@ -212,12 +208,24 @@ void init_class(class_t *class) {
         interpret(clinit_frame, class);
     }
 
+    class->state = CLASS_INITIALIZED;
+
     pthread_mutex_unlock(&class->lock);
+}
+
+void prepare_run() {
+    load_class("java/lang/Object");
+    class_t *system_class = fake_system_class();
+    arraylist_add(g_class_list, system_class);
+    load_class("java/lang/String");
+
 }
 
 void run(const char *main_class_file, project_t *project) {
     g_project = project;
     g_class_list = arraylist_new(10);
+
+    prepare_run();
 
     class_t *main_class = load_class(main_class_file);
     method_t *main_method = resolve_method(main_class, "main", "([Ljava/lang/String;)V");

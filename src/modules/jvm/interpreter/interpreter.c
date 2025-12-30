@@ -18,13 +18,31 @@
 #include <execinfo.h>
 
 
-static field_t *find_static_field(cp_info_t *info) {
-    check_cp_info_tag(info->tag, CONSTANT_Fieldref);
-    cp_fieldref_t *fieldref = (cp_fieldref_t *)info->info;
+static field_t *find_static_field(cp_info_t *cp_pools, u2 index) {
+    cp_info_t info = cp_pools[index];
+    check_cp_info_tag(info.tag, CONSTANT_Fieldref);
+    cp_fieldref_t *fieldref = (cp_fieldref_t *)info.info;
     field_t *field = fieldref->resolved_field;
     if(field != NULL && field->access_flags & FIELD_ACC_STATIC) {
         return field;
     }
+
+    cp_class_t *class = get_cp_class(&cp_pools[fieldref->class_index]);
+    class_t *target_class = load_class(get_utf8(&cp_pools[class->name_index]));
+    cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
+    char *field_name = get_utf8(&cp_pools[nameandtype->name_index]);
+    char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
+    for(u2 i = 0; i < target_class->fields_count; i++) {
+        field_t *local_field = &target_class->fields[i];
+        if(strcmp(field_name, local_field->name) == 0 && strcmp(field_descriptor, local_field->descriptor) == 0) {
+            fieldref->resolved_field = local_field;
+            return local_field;
+        }
+    }
+
+    printf("static field class name: %s\n", target_class->class_name);
+    printf("static field name: %s\n", field_name);
+    printf("static field descriptor: %s\n", field_descriptor);
     perror("field is not resolved or not static");
     abort();
 }
@@ -45,10 +63,8 @@ method_t *find_method(class_t *class, cp_info_t *info) {
     printf("target class %s\n", target_class->class_name);
     for(int i=0;i<target_class->methods_count;i++) {
         method_t *method = &target_class->methods[i];
-        char *method_name_in_class = get_utf8(&target_class->cp_pools[method->name_index]);
-        char *method_descriptor_in_class = get_utf8(&target_class->cp_pools[method->descriptor_index]);
-        printf("  Checking method %s %s\n", method_name_in_class, method_descriptor_in_class);
-        if(strcmp(method_name, method_name_in_class) == 0 && strcmp(method_descriptor, method_descriptor_in_class) == 0) {
+        printf("  Checking method %s %s\n", method->name, method->descriptor);
+        if(strcmp(method_name, method->name) == 0 && strcmp(method_descriptor, method->descriptor) == 0) {
             methodref->resolved_method = method;
             return method;
         }
@@ -974,7 +990,7 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                field_t *field = find_static_field(&cp_pools[index]);
+                field_t *field = find_static_field(cp_pools, index);
                 // printf("[WARN] getstatic #%d ignored.\n", index);
                 // todo 所有方法调用都暂时用一个对象占位
                 slot_t *stack_slot = push(frame);
@@ -985,8 +1001,18 @@ void interpret(frame_t *frame, class_t *class) {
                 break;
             }
             case OPCODE_putstatic: {   // 0xb3,       // 179
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                u1 high = frame->code[frame->pc+1];
+                u1 low = frame->code[frame->pc+2];
+                u2 index = (high << 8) | low;
+                field_t *field = find_static_field(cp_pools, index);
+                for(int i = 0; i < field->slot_count; i++) {
+                    slot_t *stack_slot = pop(frame);
+                    slot_t *field_slot = &((slot_t*)field->init_value)[i];
+                    field_slot->bits = stack_slot->bits;
+                    field_slot->ref = stack_slot->ref;
+                }
+                frame->pc += 3;
+                break;
             }
             case OPCODE_getfield: {   // 0xb4,       // 180
                 u1 i1 = frame->code[frame->pc+1];
@@ -1003,9 +1029,7 @@ void interpret(frame_t *frame, class_t *class) {
                 field_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
                     field_t *field = &target_class->fields[i];
-                    char *t_field_name = get_utf8(&target_class->cp_pools[field->name_index]);
-                    char *t_field_descriptor = get_utf8(&target_class->cp_pools[field->descriptor_index]);
-                    if(strcmp(field_name, t_field_name) == 0 && strcmp(field_descriptor, t_field_descriptor) == 0){
+                    if(strcmp(field_name, field->name) == 0 && strcmp(field_descriptor, field->descriptor) == 0){
                         target_field = field;
                         break;
                     }
@@ -1044,9 +1068,7 @@ void interpret(frame_t *frame, class_t *class) {
                 field_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
                     field_t *field = &target_class->fields[i];
-                    char *t_field_name = get_utf8(&target_class->cp_pools[field->name_index]);
-                    char *t_field_descriptor = get_utf8(&target_class->cp_pools[field->descriptor_index]);
-                    if(strcmp(field_name, t_field_name) == 0 && strcmp(field_descriptor, t_field_descriptor) == 0){
+                    if(strcmp(field_name, field->name) == 0 && strcmp(field_descriptor, field->descriptor) == 0){
                         target_field = field;
                         break;
                     }
@@ -1090,15 +1112,16 @@ void interpret(frame_t *frame, class_t *class) {
                 char *descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
                 u2 arg_slot_count = slot_count_from_desciptor(descriptor);
                 printf("invoke special, class name: %s, method name: %s %s, slot count: %d\n", class_name, name, descriptor, arg_slot_count);
+                if(strcmp(name, "println") == 0) {
+                    int32_t arg = pop_int(frame);
+                    printf("%d\n", arg);
+                }
+
                 object_t *ref = pop(frame)->ref;
                 if(strcmp(class_name, "java/lang/String") == 0) {
                     if(strcmp(name, "length") == 0) {
                         push_int(frame, strlen(ref->strings));
                     }
-                }
-                if(strcmp(name, "println") == 0) {
-                    int32_t arg = pop_int(frame);
-                    printf("%d\n", arg);
                 }
                 // todo 暂时用不到
                 frame->pc += 3;
@@ -1109,8 +1132,8 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 cp_methodref_t *methodref = get_cp_methodref(&cp_pools[index]);
-                method_t *call_method = find_method(class, &cp_pools[index]);
-                char *m_name = get_utf8(&cp_pools[call_method->name_index]);
+                cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
+                char *m_name = get_utf8(&cp_pools[nameandtype->name_index]);
 
                 // class index
                 cp_class_t *cp_class = get_cp_class(&cp_pools[methodref->class_index]);
@@ -1122,14 +1145,6 @@ void interpret(frame_t *frame, class_t *class) {
                 // char *c_name = get_class_name(method->owner_class); 
                 printf("invokespecial: %s\n", m_name);
 
-                frame_t *sub_frame = frame_new(call_method, frame);
-                slot_t *this_slot = get_local(sub_frame, 0);
-    
-                if (this_slot->ref == NULL) {
-                    fprintf(stderr, "Error: 'this' is NULL in invokespecial\n");
-                    abort();
-                }
-
                 // 2. 补丁：如果是 Object 的初始化，直接返回，不进入 interpret
                 // 这里的判断逻辑需要根据你的 class 结构完善
                 if (strcmp(m_name, "<init>") == 0) {
@@ -1138,6 +1153,16 @@ void interpret(frame_t *frame, class_t *class) {
                         return;
                     }
                 }
+
+                method_t *call_method = find_method(class, &cp_pools[index]);
+                frame_t *sub_frame = frame_new(call_method, frame);
+                slot_t *this_slot = get_local(sub_frame, 0);
+    
+                if (this_slot->ref == NULL) {
+                    fprintf(stderr, "Error: 'this' is NULL in invokespecial\n");
+                    abort();
+                }
+
                 // abort();
                 interpret(sub_frame, this_slot->ref->class);
                 frame_free(sub_frame);
@@ -1218,9 +1243,8 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 high = frame->code[frame->pc + 1];
                 u1 low = frame->code[frame->pc + 2];
                 u2 index = (high << 8) | low;
-                cp_info_t cp_info = cp_pools[index];
-                check_cp_info_tag(cp_info.tag, CONSTANT_Class);
-                class_t *local_class = load_class(get_utf8(&cp_pools[parse_to_u2(cp_info.info)]));
+                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
+                class_t *local_class = load_class(get_utf8(&cp_pools[cp_class->name_index]));
                 slot_t *slot = push(frame);
                 slot->ref->acount = count;
                 slot->ref->class = local_class;

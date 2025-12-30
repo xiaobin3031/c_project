@@ -17,8 +17,8 @@ enum field_acc_flags {
 
 typedef struct {
     u2 access_flags;
-    u2 name_index;
-    u2 descriptor_index;
+    char *name;
+    char *descriptor;
     u2 attributes_count;
     attribute_t *attributes;
 

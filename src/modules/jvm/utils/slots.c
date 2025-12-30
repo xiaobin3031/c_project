@@ -2,7 +2,8 @@
 #include "bytes.h"
 
 u2 slot_count_from_desciptor(char *descriptor) {
-    char *ptr = descriptor + 1;
+    char *ptr = descriptor;
+    if(*ptr == '(') ptr++;
     u2 arg_count = 0;
     while(*ptr && *ptr != ')') {
         if(*ptr == '[') {
