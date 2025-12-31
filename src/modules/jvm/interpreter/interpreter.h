@@ -6,9 +6,11 @@
 #include "../classfile/constant_pool.h"
 #include "../runtime/frame.h"
 
-method_t *find_method(class_t *class, cp_info_t *cp_info);
+void handle_exception(jvm_thread_t *thread);
 
-void interpret(frame_t *frame, class_t *class);
+void interpret(jvm_thread_t *thread);
+
+void exec_instruction(jvm_thread_t *thread);
 
 void print_operand_stack(frame_t *frame);
 

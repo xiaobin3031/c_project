@@ -66,7 +66,7 @@ method_t *resolve_method(class_t *class, const char *method_name, const char *me
     abort();
 }
 
-class_t *load_class(const char *class_file) {
+class_t *load_class(const char *class_file, jvm_thread_t *thread) {
     // load from cache
     class_t *class = NULL;
     for(size_t i=0;i<g_class_list->size;i++) {
@@ -92,7 +92,7 @@ class_t *load_class(const char *class_file) {
             abort();
         }
         link_class(class);
-        init_class(class);
+        init_class(class, thread);
 
         return class;
     }
@@ -178,7 +178,7 @@ void link_class(class_t *class) {
     class->state = CLASS_LINKED;
 }
 
-void init_class(class_t *class) {
+void init_class(class_t *class, jvm_thread_t *thread) {
     if(class->state < CLASS_LINKED) {
         fprintf(stderr, "class %s is not linked yet\n", class->class_name);
         abort();
@@ -199,13 +199,14 @@ void init_class(class_t *class) {
         check_cp_info_tag(super_class_info.tag, CONSTANT_Class);
         char *super_class_name = resolve_class_name(class, class->super_class);
         if(strcmp(super_class_name, "java/lang/Object") != 0) 
-            load_class(super_class_name);
+            load_class(super_class_name, thread);
     }
 
     method_t *clinit = resolve_clinit(class);
     if(clinit) {
-        frame_t *clinit_frame = frame_new(clinit, NULL);
-        interpret(clinit_frame, class);
+        frame_t *clinit_frame = frame_new(clinit, NULL, class);
+        push_frame(thread, clinit_frame);
+        interpret(thread);
     }
 
     class->state = CLASS_INITIALIZED;
@@ -213,26 +214,27 @@ void init_class(class_t *class) {
     pthread_mutex_unlock(&class->lock);
 }
 
-void prepare_run() {
-    load_class("java/lang/Object");
+void prepare_run(jvm_thread_t *thread) {
+    load_class("java/lang/Object", thread);
     class_t *system_class = fake_system_class();
     arraylist_add(g_class_list, system_class);
     class_t *printstream_class = fake_printstream_class();
     arraylist_add(g_class_list, printstream_class);
-    load_class("java/lang/String");
-
-
+    load_class("java/lang/String", thread);
 }
 
 void run(const char *main_class_file, project_t *project) {
     g_project = project;
     g_class_list = arraylist_new(10);
 
-    prepare_run();
+    jvm_thread_t *main_thread = jvm_thread_new();
+    prepare_run(main_thread);
 
-    class_t *main_class = load_class(main_class_file);
+    class_t *main_class = load_class(main_class_file, main_thread);
     method_t *main_method = resolve_method(main_class, "main", "([Ljava/lang/String;)V");
-    frame_t *frame = frame_new(main_method, NULL);
-    interpret(frame, main_class);
-    frame_free(frame);
+    frame_t *frame = frame_new(main_method, NULL, main_class);
+
+    main_thread->current_frame = NULL;
+    push_frame(main_thread, frame);
+    interpret(main_thread);
 }

@@ -17,9 +17,24 @@
 #include <string.h>
 #include <stdint.h>
 #include <execinfo.h>
+#include <stdarg.h>
 
+static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char *message, ...) {
+    va_list args;
 
-static field_t *find_static_field(cp_info_t *cp_pools, u2 index) {
+    thread->error = malloc(sizeof(error_t));
+    thread->error->type = type;
+    if(message != NULL) {
+        va_start(args, message);
+        char *formatted_message = NULL;
+        vasprintf(&formatted_message, message, args);
+        va_end(args);
+
+        thread->error->message = formatted_message;
+    }
+}
+
+static field_t *find_static_field(jvm_thread_t *thread, cp_info_t *cp_pools, u2 index) {
     cp_info_t info = cp_pools[index];
     check_cp_info_tag(info.tag, CONSTANT_Fieldref);
     cp_fieldref_t *fieldref = (cp_fieldref_t *)info.info;
@@ -29,7 +44,7 @@ static field_t *find_static_field(cp_info_t *cp_pools, u2 index) {
     }
 
     cp_class_t *class = get_cp_class(&cp_pools[fieldref->class_index]);
-    class_t *target_class = load_class(get_utf8(&cp_pools[class->name_index]));
+    class_t *target_class = load_class(get_utf8(&cp_pools[class->name_index]), thread);
     cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
     char *field_name = get_utf8(&cp_pools[nameandtype->name_index]);
     char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
@@ -48,7 +63,7 @@ static field_t *find_static_field(cp_info_t *cp_pools, u2 index) {
     abort();
 }
 
-static void run_method(class_t *class, u2 methodref_index, frame_t *cur_frame) {
+static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, frame_t *cur_frame) {
     method_t *call_method = NULL;
     cp_methodref_t *methodref = NULL;
     char *target_class_name = NULL;
@@ -59,12 +74,18 @@ static void run_method(class_t *class, u2 methodref_index, frame_t *cur_frame) {
     methodref = get_cp_methodref(&cp_pools[methodref_index]);
     target_cp_class = get_cp_class(&cp_pools[methodref->class_index]);
     target_class_name = get_utf8(&cp_pools[target_cp_class->name_index]);
-    target_class = load_class(target_class_name);
+    target_class = load_class(target_class_name, thread);
     if(methodref->resolved_method != NULL) {
         call_method = (method_t *)methodref->resolved_method;
     } else {
         cp_nameandtype_t *nametype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
         char *run_method_name = get_utf8(&cp_pools[nametype->name_index]);
+        if (strcmp(run_method_name, "<init>") == 0) {
+            // 如果类名是 java/lang/Object，则不递归
+            if(strcmp(target_class_name, "java/lang/Object") == 0) {
+                return 0;
+            }
+        }
         char *run_method_descriptor = get_utf8(&cp_pools[nametype->descriptor_index]);
         for(int i=0;i<target_class->methods_count;i++) {
             method_t *method = &target_class->methods[i];
@@ -80,41 +101,15 @@ static void run_method(class_t *class, u2 methodref_index, frame_t *cur_frame) {
         }
     }
 
-    frame_t *run_frame = frame_new(call_method, cur_frame);
+    frame_t *run_frame = frame_new(call_method, cur_frame, class);
     if(call_method->access_flags & METHOD_ACC_NATIVE) {
         native_fn fn = find_native_method(target_class_name, call_method->name, call_method->descriptor);
         fn(run_frame);
+        return 0;
     }else{
-        interpret(run_frame, target_class);
+        push_frame(thread, run_frame);
+        return 1;
     }
-
-    frame_free(run_frame);
-}
-
-method_t *find_method(class_t *class, cp_info_t *info) {
-    cp_methodref_t *methodref = get_cp_methodref(info);
-    if(methodref->resolved_method != NULL) {
-        return (method_t*) methodref->resolved_method;
-    }
-
-    cp_class_t *target_cp_class = get_cp_class(&class->cp_pools[methodref->class_index]);
-    char *target_class_name = get_utf8(&class->cp_pools[target_cp_class->name_index]);
-    class_t *target_class = load_class(target_class_name);
-    cp_nameandtype_t *nametype = get_cp_nameandtype(&class->cp_pools[methodref->name_and_type_index]);
-    char *method_name = get_utf8(&class->cp_pools[nametype->name_index]);
-    char *method_descriptor = get_utf8(&class->cp_pools[nametype->descriptor_index]);
-    printf("Resolving method %s %s\n", method_name, method_descriptor);
-    printf("target class %s\n", target_class->class_name);
-    for(int i=0;i<target_class->methods_count;i++) {
-        method_t *method = &target_class->methods[i];
-        printf("  Checking method %s %s\n", method->name, method->descriptor);
-        if(strcmp(method_name, method->name) == 0 && strcmp(method_descriptor, method->descriptor) == 0) {
-            methodref->resolved_method = method;
-            return method;
-        }
-    }
-    fprintf(stderr, "cannot find method: %s of class: %s\n", method_name, class->class_name);
-    abort();
 }
 
 static void go_to_by_index(frame_t *frame) {
@@ -124,10 +119,37 @@ static void go_to_by_index(frame_t *frame) {
     frame->pc += index;
 }
 
-void interpret(frame_t *frame, class_t *class) {
+void handle_exception(jvm_thread_t *thread) { 
+
+    while(thread->current_frame != NULL) {
+        frame_t *current_frame = thread->current_frame;
+
+        // todo 找到handler exception
+
+        pop_frame(thread);
+    }
+
+    fprintf(stderr, "Uncaught exception: %s\n", thread->error->message);
+    abort();
+}
+
+void interpret(jvm_thread_t *thread) {
+    while(thread->current_frame != NULL) {
+
+        exec_instruction(thread);
+
+        if(thread->error != NULL) {
+            handle_exception(thread);
+        }
+    }
+}
+
+void exec_instruction(jvm_thread_t *thread) {
+    frame_t *frame = thread->current_frame;
     if(frame->code_length == 0) return;
 
     u1 opcode;
+    class_t *class = frame->current_class;
     cp_info_t *cp_pools = class->cp_pools;
 
     while(frame->pc < frame->code_length) {
@@ -234,7 +256,9 @@ void interpret(frame_t *frame, class_t *class) {
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_String)) {
                     cp_info_t cp_string = cp_pools[index];
                     char *string = get_utf8(&cp_pools[parse_to_u2(cp_string.info)]);
-                    object_t *ref = new_string_object(string);
+                    object_t *ref = malloc(sizeof(object_t));
+                    ref->class = load_class("java/lang/String", thread);
+                    ref->strings = string;
                     push(frame)->ref = ref;
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_Class)) {
                     fprintf(stderr, "ldc class not implemented\n");
@@ -376,9 +400,13 @@ void interpret(frame_t *frame, class_t *class) {
             case OPCODE_iaload: {   // 0x2e,     // 46 
                 int32_t index = pop_int(frame);
                 object_t *array = pop(frame)->ref;
+                if(array == NULL) {
+                    throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
+                    return;
+                }
                 if(index < 0 || index >= array->acount) {
-                    // todo throw exception
-                    abort();
+                    throw_error(thread, RUNTIME_ERROR_ArrayIndexOutOfBoundsException, NULL);
+                    return;
                 }
                 slot_t slot = array->fields[index];
                 push(frame)->bits = slot.bits;
@@ -1034,9 +1062,7 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                field_t *field = find_static_field(cp_pools, index);
-                // printf("[WARN] getstatic #%d ignored.\n", index);
-                // todo 所有方法调用都暂时用一个对象占位
+                field_t *field = find_static_field(thread, cp_pools, index);
                 slot_t *stack_slot = push(frame);
                 slot_t *field_slot = (slot_t*)field->init_value;
                 stack_slot->bits = field_slot->bits;
@@ -1048,7 +1074,7 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 high = frame->code[frame->pc+1];
                 u1 low = frame->code[frame->pc+2];
                 u2 index = (high << 8) | low;
-                field_t *field = find_static_field(cp_pools, index);
+                field_t *field = find_static_field(thread, cp_pools, index);
                 for(int i = 0; i < field->slot_count; i++) {
                     slot_t *stack_slot = pop(frame);
                     slot_t *field_slot = &((slot_t*)field->init_value)[i];
@@ -1069,7 +1095,7 @@ void interpret(frame_t *frame, class_t *class) {
 
                 // 找到field所在的class，获取field在实例对象中的位置和属性数量
                 cp_class_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
-                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]));
+                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]), thread);
                 field_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
                     field_t *field = &target_class->fields[i];
@@ -1089,9 +1115,7 @@ void interpret(frame_t *frame, class_t *class) {
                     slot_t field_slot = ref->fields[i];
                     slot_t *slot = push(frame);
                     slot->bits = field_slot.bits;
-                    if(field_slot.ref) {
-                        memcpy(slot->ref, field_slot.ref, sizeof(object_t));
-                    }
+                    slot->ref = field_slot.ref;
                 }
 
                 frame->pc += 3;
@@ -1108,7 +1132,7 @@ void interpret(frame_t *frame, class_t *class) {
 
                 // 找到field所在的class，获取field在实例对象中的位置和属性数量
                 cp_class_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
-                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]));
+                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]), thread);
                 field_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
                     field_t *field = &target_class->fields[i];
@@ -1148,83 +1172,24 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                run_method(class, index, frame);
-                // cp_methodref_t *methodref = get_cp_methodref(&cp_pools[index]);
-                // cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
-                // cp_class_t *cp_class = get_cp_class(&cp_pools[methodref->class_index]);
-                // char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
-                // char *name = get_utf8(&cp_pools[nameandtype->name_index]);
-                // char *descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
-                // u2 arg_slot_count = slot_count_from_desciptor(descriptor);
-                // printf("invoke special, class name: %s, method name: %s %s, slot count: %d\n", class_name, name, descriptor, arg_slot_count);
-                // method_t *method = find_method(class, &cp_pools[index]);
-                // if(strcmp(name, "println") == 0) {
-                //     int32_t arg = pop_int(frame);
-                //     printf("%d\n", arg);
-                // }
-
-                // object_t *ref = pop(frame)->ref;
-                // if(strcmp(class_name, "java/lang/String") == 0) {
-                //     if(strcmp(name, "length") == 0) {
-                //         push_int(frame, strlen(ref->strings));
-                //     }
-                // }
-                // todo 暂时用不到
                 frame->pc += 3;
+                if(run_method(thread, class, index, frame)) return;
                 break;
             }
             case OPCODE_invokespecial: {   // 0xb7,       // 183
                 u2 index1 = frame->code[frame->pc+1];
                 u2 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_methodref_t *methodref = get_cp_methodref(&cp_pools[index]);
-                cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
-                char *m_name = get_utf8(&cp_pools[nameandtype->name_index]);
-
-                // class index
-                cp_class_t *cp_class = get_cp_class(&cp_pools[methodref->class_index]);
-                char *c_name = get_utf8(&cp_pools[cp_class->name_index]);
-                printf("class name: %s\n", c_name);
-
-                // 1. 获取方法名和类名
-                // 假设你有办法从 method 拿到它所属的 class 结构
-                // char *c_name = get_class_name(method->owner_class); 
-                printf("invokespecial: %s\n", m_name);
-
-                // 2. 补丁：如果是 Object 的初始化，直接返回，不进入 interpret
-                // 这里的判断逻辑需要根据你的 class 结构完善
-                if (strcmp(m_name, "<init>") == 0) {
-                    // 如果类名是 java/lang/Object，则不递归
-                    if(strcmp(c_name, "java/lang/Object") == 0) {
-                        return;
-                    }
-                }
-
-                method_t *call_method = find_method(class, &cp_pools[index]);
-                frame_t *sub_frame = frame_new(call_method, frame);
-                slot_t *this_slot = get_local(sub_frame, 0);
-    
-                if (this_slot->ref == NULL) {
-                    fprintf(stderr, "Error: 'this' is NULL in invokespecial\n");
-                    abort();
-                }
-
-                // abort();
-                interpret(sub_frame, this_slot->ref->class);
-                frame_free(sub_frame);
                 frame->pc += 3;
+                if(run_method(thread, class, index, frame)) return;
                 break;
             }
             case OPCODE_invokestatic: {   // 0xb8,       // 184
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_info_t info = cp_pools[index];
-                method_t *method = find_method(class, &info);
-                frame_t *sub_frame = frame_new(method, frame);
-                interpret(sub_frame, class);
-                frame_free(sub_frame);
                 frame->pc += 3;
+                if(run_method(thread, class, index, frame)) return;
                 break;
             }
             case OPCODE_invokeinterface: {   // 0xb9,       // 185
@@ -1239,11 +1204,9 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_info_t info = cp_pools[index];
-                check_cp_info_tag(info.tag, CONSTANT_Class);
-                cp_class_t *cp_class = (cp_class_t*)info.info;
+                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
                 char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
-                class_t *local_class = load_class(class_name);
+                class_t *local_class = load_class(class_name, thread);
                 object_t *ref = calloc(1, sizeof(object_t));
                 ref->class = local_class;
                 ref->fields = calloc(local_class->total_field_slots, sizeof(slot_t));
@@ -1254,8 +1217,8 @@ void interpret(frame_t *frame, class_t *class) {
             case OPCODE_newarray: {   // 0xbc,       // 188
                 int32_t a_count = pop_int(frame);
                 if(a_count < 0) {
-                    // todo throw exception
-                    abort();
+                    throw_error(thread, RUNTIME_ERROR_NegativeArraySizeException, NULL);
+                    return;
                 }
                 slot_t *slot = push(frame);
                 if(!slot->ref) {
@@ -1276,7 +1239,6 @@ void interpret(frame_t *frame, class_t *class) {
                         a_count *= 2;
                         break;
                     default:
-                        // todo throw exception
                         abort();
                 }
                 slot->ref->acount = a_count;
@@ -1290,7 +1252,7 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 low = frame->code[frame->pc + 2];
                 u2 index = (high << 8) | low;
                 cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
-                class_t *local_class = load_class(get_utf8(&cp_pools[cp_class->name_index]));
+                class_t *local_class = load_class(get_utf8(&cp_pools[cp_class->name_index]), thread);
                 slot_t *slot = push(frame);
                 slot->ref->acount = count;
                 slot->ref->class = local_class;
@@ -1315,7 +1277,6 @@ void interpret(frame_t *frame, class_t *class) {
                 u2 index = (high << 8) | low;
                 cp_info_t cp_info = cp_pools[index];
 
-                // todo 暂时跳过
                 frame->pc +=3;
                 break;
             }
@@ -1323,12 +1284,12 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 high = frame->code[frame->pc+1];
                 u1 low = frame->code[frame->pc+2];
                 u2 index = (high << 8) | low;
-                cp_info_t cp_info = cp_pools[index];
+                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
                 object_t *ref = pop(frame)->ref;
                 if(ref == NULL) {
                     push_int(frame, 0);
                 }else {
-                    char *class_name = get_utf8(&cp_pools[parse_to_u2(cp_info.info)]);
+                    char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
                     if(strcmp(class_name, ref->class->class_name) == 0) {
                         push_int(frame, 1);
                     }else {
@@ -1384,16 +1345,14 @@ void interpret(frame_t *frame, class_t *class) {
                     frame->pc += jump_offset;
                 }
                 break;
-            // fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            // abort();
             }
             case OPCODE_lookupswitch: {   // 0xab,       // 171 
             fprintf(stderr, "unimpleted opcode: %d\n", opcode);
                             abort();
             }
             case OPCODE_ireturn: {   // 0xac,       // 172 
-                frame_t *invoke = frame->invoker;
-                push_int(invoke, pop_int(frame));
+                pop_frame(thread);
+                push_int(thread->current_frame, pop_int(frame));
                 return;
             }
             case OPCODE_lreturn: {   // 0xad,       // 173 
@@ -1413,6 +1372,7 @@ void interpret(frame_t *frame, class_t *class) {
                             abort();
             }
             case OPCODE_return: {   // 0xb1,       // 177 
+                pop_frame(thread);
                 return;
             }
             // Extended

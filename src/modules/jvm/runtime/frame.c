@@ -6,9 +6,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+void pop_frame(jvm_thread_t *thread) {
+    frame_t *current_frame = thread->current_frame;
+    frame_t *frame = current_frame->invoker;
+    thread->current_frame = frame;
+    frame_free(current_frame);
+}
 
+void push_frame(jvm_thread_t *thread, frame_t *frame) {
+    frame_t *current_frame = thread->current_frame;
+    frame->invoker = current_frame;
+    thread->current_frame = frame;
+}
 
-frame_t *frame_new(method_t *method, frame_t *invoker) {
+frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
     int is_static = method->access_flags & METHOD_ACC_STATIC;
     attr_code_t *code_attr = NULL;
     frame_t *frame = NULL;
@@ -60,8 +71,7 @@ frame_t *frame_new(method_t *method, frame_t *invoker) {
     }
     frame->sp = 0;
     frame->pc = 0;
-    frame->invoker = invoker;
-        // 复制方法参数
+    // 复制方法参数
     if(invoker) {
         u2 total_slot_count = method->arg_slot_count;
         if(!is_static) total_slot_count++;
@@ -74,9 +84,16 @@ frame_t *frame_new(method_t *method, frame_t *invoker) {
             local->ref = stack->ref;
         }
     }
+    frame->current_class = current_class;
     return frame;
 }
 
+jvm_thread_t *jvm_thread_new() {
+    jvm_thread_t *thread = malloc(sizeof(jvm_thread_t));
+    thread->current_frame = NULL;
+    thread->error = NULL;
+    return thread;
+}
 
 
 
