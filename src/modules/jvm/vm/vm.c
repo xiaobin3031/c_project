@@ -217,7 +217,10 @@ void prepare_run() {
     load_class("java/lang/Object");
     class_t *system_class = fake_system_class();
     arraylist_add(g_class_list, system_class);
+    class_t *printstream_class = fake_printstream_class();
+    arraylist_add(g_class_list, printstream_class);
     load_class("java/lang/String");
+
 
 }
 

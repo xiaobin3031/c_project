@@ -9,7 +9,7 @@ void register_native(
     const char *class_name,
     const char *method_name,
     const char *descriptor,
-    native_fn *fn
+    native_fn fn
 ) {
     if(native_methods == NULL) {
         native_methods = arraylist_new(10);
@@ -23,7 +23,7 @@ void register_native(
     arraylist_add(native_methods, native_method);
 }
 
-native_fn *find_native_method(
+native_fn find_native_method(
     const char *class_name,
     const char *method_name,
     const char *descriptor
@@ -40,5 +40,7 @@ native_fn *find_native_method(
             return native_method->fn;
         }
     }
-    return NULL;
+    // todo 找不到native方法
+    fprintf(stderr, "native method not found: %s.%s%s\n", class_name, method_name, descriptor);
+    abort();
 }

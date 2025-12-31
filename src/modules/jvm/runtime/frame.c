@@ -10,37 +10,52 @@
 
 frame_t *frame_new(method_t *method, frame_t *invoker) {
     int is_static = method->access_flags & METHOD_ACC_STATIC;
-    attr_code_t *code_attr;
-    for(u2 i = 0; i < method->attributes_count; i++) {
-        if(method->attributes[i].tag == ATTR_CODE) {
-            code_attr = (attr_code_t *)method->attributes[i].info;
-            break;
+    attr_code_t *code_attr = NULL;
+    frame_t *frame = NULL;
+    u2 max_locals = 0, max_stacks = 0;
+
+    if(method->access_flags & METHOD_ACC_NATIVE) {
+        // native 方法，直接指定参数
+        max_locals = method->arg_slot_count;
+        max_stacks = 0;
+    } else {
+        // 非native方法，从code attr中获取执行的代码
+        for(u2 i = 0; i < method->attributes_count; i++) {
+            if(method->attributes[i].tag == ATTR_CODE) {
+                code_attr = (attr_code_t *)method->attributes[i].info;
+                break;
+            }
         }
+        if(code_attr == NULL) {
+            fprintf(stderr, "method has no code attribute\n");
+            abort();
+        }
+        max_locals = code_attr->max_locals;
+        max_stacks = code_attr->max_stack;
     }
-    if(code_attr == NULL) {
-        fprintf(stderr, "method has no code attribute\n");
-        abort();
-    }
-
-    u2 max_locals = code_attr->max_locals;
-    // 需要存一个this
+    // 需要存一个this，jvm规定
     if(!is_static) max_locals++;
-    size_t frame_size = sizeof(frame_t);
 
-    char *frame_memory = calloc(1, frame_size + max_locals * sizeof(slot_t) + code_attr->max_stack * sizeof(slot_t));
+    size_t frame_size = sizeof(frame_t);
+    char *frame_memory = calloc(1, frame_size + max_locals * sizeof(slot_t) + max_stacks * sizeof(slot_t));
     if(!frame_memory) {
         perror("create frame error by malloc");
         abort();
     }
-    frame_t *frame = (frame_t *)frame_memory;
-    frame->code = code_attr->code;
-    frame->code_length = code_attr->code_length;
+
+    frame = (frame_t *)frame_memory;
+
+    if(code_attr) {
+        frame->code = code_attr->code;
+        frame->code_length = code_attr->code_length;
+    }
+
     frame->local_var_size = max_locals;
-    frame->operand_stack_size = code_attr->max_stack;
+    frame->operand_stack_size = max_stacks;
     if(max_locals > 0) {
         frame->local_vars = (slot_t*)(frame_memory + frame_size);
     }
-    if(code_attr->max_stack > 0) {
+    if(max_stacks > 0) {
         frame->operand_stack = (slot_t*)(frame_memory + frame_size + max_locals * sizeof(slot_t));
     }
     frame->sp = 0;

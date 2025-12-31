@@ -5,6 +5,7 @@
 #include "../utils/jtype.h"
 #include "../runtime/frame.h"
 #include "../runtime/operand_stack.h"
+#include "../runtime/local_vars.h"
 
 class_t *fake_system_class() { 
     class_t *class = malloc(sizeof(class_t));
@@ -31,7 +32,7 @@ class_t *fake_system_class() {
 }
 
 void println_int(frame_t *frame) {
-    int32_t val = pop_int(frame);
+    int32_t val = (int32_t)get_local(frame, 1)->bits;
     printf("%d\n", val);
 }
 
@@ -47,5 +48,6 @@ class_t *fake_printstream_class() {
     register_native(class->class_name, method->name, method->descriptor, println_int);
     class->methods = malloc(sizeof(method_t));
     class->methods[0] = *method;
+    class->methods_count = 1;
     return class;
 }

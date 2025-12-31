@@ -48,9 +48,47 @@ static field_t *find_static_field(cp_info_t *cp_pools, u2 index) {
     abort();
 }
 
-static void run_method(class_t *class, u2 methodref_index) {
-    cp_info_t *cp_info = class->cp_pools;
-    cp_methodref_t *methodref = get_cp_methodref(&cp_info[methodref_index]);
+static void run_method(class_t *class, u2 methodref_index, frame_t *cur_frame) {
+    method_t *call_method = NULL;
+    cp_methodref_t *methodref = NULL;
+    char *target_class_name = NULL;
+    class_t *target_class = NULL;
+    cp_class_t *target_cp_class = NULL;
+    cp_info_t *cp_pools = class->cp_pools;
+
+    methodref = get_cp_methodref(&cp_pools[methodref_index]);
+    target_cp_class = get_cp_class(&cp_pools[methodref->class_index]);
+    target_class_name = get_utf8(&cp_pools[target_cp_class->name_index]);
+    target_class = load_class(target_class_name);
+    if(methodref->resolved_method != NULL) {
+        call_method = (method_t *)methodref->resolved_method;
+    } else {
+        cp_nameandtype_t *nametype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
+        char *run_method_name = get_utf8(&cp_pools[nametype->name_index]);
+        char *run_method_descriptor = get_utf8(&cp_pools[nametype->descriptor_index]);
+        for(int i=0;i<target_class->methods_count;i++) {
+            method_t *method = &target_class->methods[i];
+            if(strcmp(run_method_name, method->name) == 0 && strcmp(run_method_descriptor, method->descriptor) == 0) {
+                methodref->resolved_method = method;
+                call_method = method;
+                break;
+            }
+        }
+        if(call_method == NULL) {
+            fprintf(stderr, "cannot find method to run, %s %s\n", run_method_name, run_method_descriptor);
+            abort();
+        }
+    }
+
+    frame_t *run_frame = frame_new(call_method, cur_frame);
+    if(call_method->access_flags & METHOD_ACC_NATIVE) {
+        native_fn fn = find_native_method(target_class_name, call_method->name, call_method->descriptor);
+        fn(run_frame);
+    }else{
+        interpret(run_frame, target_class);
+    }
+
+    frame_free(run_frame);
 }
 
 method_t *find_method(class_t *class, cp_info_t *info) {
@@ -1110,26 +1148,27 @@ void interpret(frame_t *frame, class_t *class) {
                 u1 index1 = frame->code[frame->pc+1];
                 u1 index2 = frame->code[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_methodref_t *methodref = get_cp_methodref(&cp_pools[index]);
-                cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
-                cp_class_t *cp_class = get_cp_class(&cp_pools[methodref->class_index]);
-                char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
-                char *name = get_utf8(&cp_pools[nameandtype->name_index]);
-                char *descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
-                u2 arg_slot_count = slot_count_from_desciptor(descriptor);
-                printf("invoke special, class name: %s, method name: %s %s, slot count: %d\n", class_name, name, descriptor, arg_slot_count);
-                method_t *method = find_method(class, &cp_pools[index]);
-                if(strcmp(name, "println") == 0) {
-                    int32_t arg = pop_int(frame);
-                    printf("%d\n", arg);
-                }
+                run_method(class, index, frame);
+                // cp_methodref_t *methodref = get_cp_methodref(&cp_pools[index]);
+                // cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
+                // cp_class_t *cp_class = get_cp_class(&cp_pools[methodref->class_index]);
+                // char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
+                // char *name = get_utf8(&cp_pools[nameandtype->name_index]);
+                // char *descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
+                // u2 arg_slot_count = slot_count_from_desciptor(descriptor);
+                // printf("invoke special, class name: %s, method name: %s %s, slot count: %d\n", class_name, name, descriptor, arg_slot_count);
+                // method_t *method = find_method(class, &cp_pools[index]);
+                // if(strcmp(name, "println") == 0) {
+                //     int32_t arg = pop_int(frame);
+                //     printf("%d\n", arg);
+                // }
 
-                object_t *ref = pop(frame)->ref;
-                if(strcmp(class_name, "java/lang/String") == 0) {
-                    if(strcmp(name, "length") == 0) {
-                        push_int(frame, strlen(ref->strings));
-                    }
-                }
+                // object_t *ref = pop(frame)->ref;
+                // if(strcmp(class_name, "java/lang/String") == 0) {
+                //     if(strcmp(name, "length") == 0) {
+                //         push_int(frame, strlen(ref->strings));
+                //     }
+                // }
                 // todo 暂时用不到
                 frame->pc += 3;
                 break;
