@@ -82,7 +82,8 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
         char *run_method_name = get_utf8(&cp_pools[nametype->name_index]);
         if (strcmp(run_method_name, "<init>") == 0) {
             // 如果类名是 java/lang/Object，则不递归
-            if(strcmp(target_class_name, "java/lang/Object") == 0) {
+            if(strcmp(target_class_name, "java/lang/Object") == 0
+                || strcmp(target_class_name, "java/lang/RuntimeException") == 0) {
                 return 0;
             }
         }
@@ -130,7 +131,8 @@ void handle_exception(jvm_thread_t *thread) {
     }
 
     fprintf(stderr, "Uncaught exception: %s\n", thread->error->message);
-    abort();
+    fprintf(stderr, "Program exit by Uncaught exception\n");
+    exit(1);
 }
 
 void interpret(jvm_thread_t *thread) {
@@ -1268,8 +1270,13 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_athrow: {   // 0xbf,       // 191
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                object_t *ref = pop(frame)->ref;
+                if(ref == NULL) {
+                    throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
+                    return;
+                }
+                throw_error(thread, RUNTIME_ERROR_RuntimeException, ref->strings);
+                return;
             }
             case OPCODE_checkcast: {   // 0xc0,       // 192
                 u1 high = frame->code[frame->pc+1];

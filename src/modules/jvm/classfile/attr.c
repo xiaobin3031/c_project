@@ -19,7 +19,10 @@ attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
         attribute_t attr;
         attr.attribute_name_index = attr_name_index;
         attr.attribute_length = read_u4(file);
-        if(attr.attribute_length > 0 && strcmp(attr_name, "Code") != 0) {
+        if(attr.attribute_length > 0 
+            && strcmp(attr_name, "Code") != 0
+            && strcmp(attr_name, "Exceptions") != 0
+            ) {
             attr.info = read_bytes(file, attr.attribute_length);
         }
         if(strcmp(attr_name, "Code") == 0) {
@@ -76,6 +79,7 @@ attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
             attr.tag = ATTR_CONSTANT_VALUE;
         }else if(strcmp(attr_name, "Exceptions") == 0) {
             attr.tag = ATTR_EXCEPTIONS;
+            
         }else if(strcmp(attr_name, "InnerClasses") == 0) {
             attr.tag = ATTR_INNER_CLASSES;
         }else if(strcmp(attr_name, "LineNumberTable") == 0) {

@@ -100,6 +100,7 @@ class_t *load_class(const char *class_file, jvm_thread_t *thread) {
     // todo 这里后续要删掉
     if(strcmp(class_file, "java/lang/String") == 0 
         || strcmp(class_file, "java/lang/System") == 0
+        || strcmp(class_file, "java/lang/RuntimeException") == 0
         || strcmp(class_file, "java/lang/Object") == 0) {
         class_t *class = calloc(1, sizeof(class_t));
         class->class_name = strdup(class_file);
@@ -221,6 +222,7 @@ void prepare_run(jvm_thread_t *thread) {
     class_t *printstream_class = fake_printstream_class();
     arraylist_add(g_class_list, printstream_class);
     load_class("java/lang/String", thread);
+    load_class("java/lang/RuntimeException", thread);
 }
 
 void run(const char *main_class_file, project_t *project) {

@@ -56,6 +56,10 @@ typedef struct {
 } exception_table_t;
 
 typedef struct {
+    
+} exception_t;
+
+typedef struct {
     u1 tag;
     u2 attribute_name_index;
     u4 attribute_length;
