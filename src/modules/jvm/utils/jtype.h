@@ -3,7 +3,6 @@
 #include "bytes.h"
 #include "../classfile/class_reader.h"
 
-typedef struct frame_t frame_t;
 typedef struct slot_t slot_t;
 
 enum atype {

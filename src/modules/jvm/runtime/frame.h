@@ -3,6 +3,7 @@
 #include "../utils/bytes.h"
 #include "../utils/jtype.h"
 #include "../classfile/method_info.h"
+#include "../classfile/attr.h"
 #include "run_error.h"
 
 #include <stdint.h>
@@ -21,9 +22,9 @@ struct frame_t {
     u2 local_var_size;
     u2 operand_stack_size;
     int16_t sp;
-    u4 code_length;
-    u1 *code;
     u4 pc;
+
+    attr_code_t *attr_code;
 
     class_t *current_class;
     frame_t *invoker;

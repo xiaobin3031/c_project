@@ -114,8 +114,8 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
 }
 
 static void go_to_by_index(frame_t *frame) {
-    u1 bb1 = frame->code[frame->pc+1];
-    u1 bb2 = frame->code[frame->pc+2];
+    u1 bb1 = frame->attr_code->code[frame->pc+1];
+    u1 bb2 = frame->attr_code->code[frame->pc+2];
     int16_t index = (int16_t)((bb1 << 8) | bb2);
     frame->pc += index;
 }
@@ -126,6 +126,15 @@ void handle_exception(jvm_thread_t *thread) {
         frame_t *current_frame = thread->current_frame;
 
         // todo 找到handler exception
+        attr_code_t *attr_code = current_frame->attr_code;
+        if(attr_code->exception_table_length > 0) {
+            for(u2 i =0;i<attr_code->exception_table_length;i++) {
+                exception_table_t exception_table = attr_code->exception_table[i];
+                if(current_frame->pc >= exception_table.start_pc && current_frame->pc < exception_table.end_pc && exception_table.end_pc <= attr_code->code_length) {
+                    // todo 找到handler
+                }
+            }
+        }
 
         pop_frame(thread);
     }
@@ -148,14 +157,16 @@ void interpret(jvm_thread_t *thread) {
 
 void exec_instruction(jvm_thread_t *thread) {
     frame_t *frame = thread->current_frame;
-    if(frame->code_length == 0) return;
+    u4 code_length = frame->attr_code->code_length;
+    if(code_length == 0) return;
 
+    u1 *codes = frame->attr_code->code;
     u1 opcode;
     class_t *class = frame->current_class;
     cp_info_t *cp_pools = class->cp_pools;
 
-    while(frame->pc < frame->code_length) {
-        opcode = frame->code[frame->pc];
+    while(frame->pc < code_length) {
+        opcode = codes[frame->pc];
         printf("opcode: %d\n", opcode);
         switch(opcode) {
             // Constants
@@ -234,21 +245,21 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_bipush: {   // 0x10,  // 16 
-                int32_t bb = (int32_t)frame->code[frame->pc+1];
+                int32_t bb = (int32_t)codes[frame->pc+1];
                 push(frame)->bits = (uint32_t)bb;
                 frame->pc += 2;
                 break;
             }
             case OPCODE_sipush: {   // 0x11,  // 17 
-                u1 v1 = frame->code[frame->pc+1];
-                u1 v2 = frame->code[frame->pc+2];
+                u1 v1 = codes[frame->pc+1];
+                u1 v2 = codes[frame->pc+2];
                 u2 r = (v1 << 8) | v2;
                 push_int(frame, (int32_t)r);
                 frame->pc += 3;
                 break;
             }
             case OPCODE_ldc: {   // 0x12,  // 18 
-                u1 index = frame->code[frame->pc+1];
+                u1 index = codes[frame->pc+1];
                 cp_info_t cp_info = cp_pools[index];
                 printf("ldc cp_info.tag: %d\n", cp_info.tag);
                 if(is_cp_info_tag(cp_info.tag, CONSTANT_Integer)) {
@@ -288,7 +299,7 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             // Loads
             case OPCODE_iload: {   // 0x15,     // 21 
-                u1 index = frame->code[frame->pc+1];
+                u1 index = codes[frame->pc+1];
                 push(frame)->bits = get_local(frame, index)->bits;
                 frame->pc += 2;
                 break;
@@ -306,7 +317,7 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_aload: {   // 0x19,     // 25 
-                u1 index = frame->code[frame->pc + 1];
+                u1 index = codes[frame->pc + 1];
                 push(frame)->ref = get_local(frame, index)->ref;
                 frame->pc += 2;
                 break;
@@ -449,7 +460,7 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             // Stores
             case OPCODE_istore: {   // 0x36,       // 54 
-                u1 index = frame->code[frame->pc+1];
+                u1 index = codes[frame->pc+1];
                 slot_t *slot = get_local(frame, index);
                 slot->bits = pop(frame)->bits;
                 frame->pc += 2;
@@ -468,7 +479,7 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_astore: {   // 0x3a,       // 58 
-                u1 index = frame->code[frame->pc + 1];
+                u1 index = codes[frame->pc + 1];
                 get_local(frame, index)->ref = pop(frame)->ref;
                 frame->pc += 2;
                 break;
@@ -845,9 +856,9 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_iinc: {   // 0x84,       // 132 
-                u1 index = frame->code[frame->pc+1];
+                u1 index = codes[frame->pc+1];
                 slot_t *slot = get_local(frame, index);
-                int32_t increment = (int32_t)frame->code[frame->pc+2];
+                int32_t increment = (int32_t)codes[frame->pc+2];
                 int32_t value = (int32_t)slot->bits;
                 value += increment;
 
@@ -1061,8 +1072,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             // References
             case OPCODE_getstatic: {   // 0xb2,       // 178
-                u1 index1 = frame->code[frame->pc+1];
-                u1 index2 = frame->code[frame->pc+2];
+                u1 index1 = codes[frame->pc+1];
+                u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 field_t *field = find_static_field(thread, cp_pools, index);
                 slot_t *stack_slot = push(frame);
@@ -1073,8 +1084,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_putstatic: {   // 0xb3,       // 179
-                u1 high = frame->code[frame->pc+1];
-                u1 low = frame->code[frame->pc+2];
+                u1 high = codes[frame->pc+1];
+                u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
                 field_t *field = find_static_field(thread, cp_pools, index);
                 for(int i = 0; i < field->slot_count; i++) {
@@ -1087,8 +1098,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_getfield: {   // 0xb4,       // 180
-                u1 i1 = frame->code[frame->pc+1];
-                u1 i2 = frame->code[frame->pc+2];
+                u1 i1 = codes[frame->pc+1];
+                u1 i2 = codes[frame->pc+2];
                 u2 index = (i1 << 8) | i2;
                 cp_fieldref_t *fieldref = get_cp_fieldref(&cp_pools[index]);
                 cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
@@ -1124,8 +1135,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_putfield: {   // 0xb5,       // 181
-                u1 i1 = frame->code[frame->pc+1];
-                u1 i2 = frame->code[frame->pc+2];
+                u1 i1 = codes[frame->pc+1];
+                u1 i2 = codes[frame->pc+2];
                 u2 index = (i1 << 8) | i2;
                 cp_fieldref_t *fieldref = get_cp_fieldref(&cp_pools[index]);
                 cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
@@ -1171,24 +1182,24 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_invokevirtual: {   // 0xb6,       // 182
-                u1 index1 = frame->code[frame->pc+1];
-                u1 index2 = frame->code[frame->pc+2];
+                u1 index1 = codes[frame->pc+1];
+                u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
                 if(run_method(thread, class, index, frame)) return;
                 break;
             }
             case OPCODE_invokespecial: {   // 0xb7,       // 183
-                u2 index1 = frame->code[frame->pc+1];
-                u2 index2 = frame->code[frame->pc+2];
+                u2 index1 = codes[frame->pc+1];
+                u2 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
                 if(run_method(thread, class, index, frame)) return;
                 break;
             }
             case OPCODE_invokestatic: {   // 0xb8,       // 184
-                u1 index1 = frame->code[frame->pc+1];
-                u1 index2 = frame->code[frame->pc+2];
+                u1 index1 = codes[frame->pc+1];
+                u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
                 if(run_method(thread, class, index, frame)) return;
@@ -1203,8 +1214,8 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_new: {   // 0xbb,       // 187
-                u1 index1 = frame->code[frame->pc+1];
-                u1 index2 = frame->code[frame->pc+2];
+                u1 index1 = codes[frame->pc+1];
+                u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
                 char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
@@ -1226,7 +1237,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 if(!slot->ref) {
                     slot->ref = calloc(1, sizeof(object_t));
                 }
-                u1 atype = frame->code[frame->pc + 1];
+                u1 atype = codes[frame->pc + 1];
                 slot->ref->atype = atype;
                 switch(atype) {
                     case ATYPE_BOOLEAN:
@@ -1250,8 +1261,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_anewarray: {   // 0xbd,       // 189
                 int32_t count = pop_int(frame);
-                u1 high = frame->code[frame->pc + 1];
-                u1 low = frame->code[frame->pc + 2];
+                u1 high = codes[frame->pc + 1];
+                u1 low = codes[frame->pc + 2];
                 u2 index = (high << 8) | low;
                 cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
                 class_t *local_class = load_class(get_utf8(&cp_pools[cp_class->name_index]), thread);
@@ -1279,8 +1290,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 return;
             }
             case OPCODE_checkcast: {   // 0xc0,       // 192
-                u1 high = frame->code[frame->pc+1];
-                u1 low = frame->code[frame->pc+2];
+                u1 high = codes[frame->pc+1];
+                u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
                 cp_info_t cp_info = cp_pools[index];
 
@@ -1288,8 +1299,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_instanceof: {   // 0xc1,       // 193
-                u1 high = frame->code[frame->pc+1];
-                u1 low = frame->code[frame->pc+2];
+                u1 high = codes[frame->pc+1];
+                u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
                 cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
                 object_t *ref = pop(frame)->ref;
@@ -1316,8 +1327,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             // Control
             case OPCODE_goto: {   // 0xa7,       // 167 
-                u1 index1 = frame->code[frame->pc+1];
-                u1 index2 = frame->code[frame->pc+2];
+                u1 index1 = codes[frame->pc+1];
+                u1 index2 = codes[frame->pc+2];
                 int16_t index = (int16_t)((index1 << 8) | index2);
                 frame->pc += index;
                 break;
@@ -1335,11 +1346,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 while((frame->pc + offset) % 4 != 0) {
                     offset++;
                 }
-                int32_t def_val = (int32_t)parse_to_u4(frame->code + frame->pc + offset);
+                int32_t def_val = (int32_t)parse_to_u4(codes + frame->pc + offset);
                 offset += 4;
-                int32_t low = (int32_t)parse_to_u4(frame->code + frame->pc + offset);
+                int32_t low = (int32_t)parse_to_u4(codes + frame->pc + offset);
                 offset += 4;
-                int32_t high = (int32_t)parse_to_u4(frame->code + frame->pc + offset);
+                int32_t high = (int32_t)parse_to_u4(codes + frame->pc + offset);
                 u2 length = high - low + 1;
                 int32_t index = pop_int(frame);
                 if(index < low || index > high) {
@@ -1348,7 +1359,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     // jump table
                     offset += 4;
                     offset += (index - low) * 4;
-                    int32_t jump_offset = (int32_t)parse_to_u4(frame->code + frame->pc + offset);
+                    int32_t jump_offset = (int32_t)parse_to_u4(codes + frame->pc + offset);
                     frame->pc += jump_offset;
                 }
                 break;

@@ -21,7 +21,6 @@ attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
         attr.attribute_length = read_u4(file);
         if(attr.attribute_length > 0 
             && strcmp(attr_name, "Code") != 0
-            && strcmp(attr_name, "Exceptions") != 0
             ) {
             attr.info = read_bytes(file, attr.attribute_length);
         }

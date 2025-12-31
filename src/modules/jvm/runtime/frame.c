@@ -56,10 +56,7 @@ frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
 
     frame = (frame_t *)frame_memory;
 
-    if(code_attr) {
-        frame->code = code_attr->code;
-        frame->code_length = code_attr->code_length;
-    }
+    frame->attr_code = code_attr;
 
     frame->local_var_size = max_locals;
     frame->operand_stack_size = max_stacks;
@@ -108,7 +105,9 @@ void frame_free(frame_t *frame) {
 void dump_frame(frame_t *frame) {
     printf("[DUMP] frame: \n");
     printf("[DUMP] local vars: %d\n", frame->local_var_size);
-    printf("[DUMP] pc: %d / %d\n", frame->pc, frame->code_length);
     printf("[DUMP] sp: %d / %d\n", frame->sp, frame->operand_stack_size);
-    printf("[DUMP] opcode: %d\n", frame->code[frame->pc]);
+    if(frame->attr_code) {
+        printf("[DUMP] opcode: %d\n", frame->attr_code->code[frame->pc]);
+        printf("[DUMP] pc: %d / %d\n", frame->pc, frame->attr_code->code_length);
+    }
 }
