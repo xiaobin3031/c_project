@@ -14,14 +14,14 @@ public class MainInit {
         try {
             System.out.println(A.x);
         } catch (Throwable t) {
-            System.out.println("first access failed: " + t);
+            System.out.println("first access failed: ");
         }
 
         // 第二次访问
         try {
             System.out.println(A.x);
         } catch (Throwable t) {
-            System.out.println("second access failed: " + t);
+            System.out.println("second access failed: ");
         }
     }
 }

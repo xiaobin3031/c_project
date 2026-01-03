@@ -48,3 +48,5 @@ jvm_thread_t *jvm_thread_new();
 void frame_free(frame_t *frame);
 
 void dump_frame(frame_t *frame);
+
+void error_free(error_t *error);

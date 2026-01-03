@@ -205,9 +205,11 @@ void init_class(class_t *class, jvm_thread_t *thread) {
 
     method_t *clinit = resolve_clinit(class);
     if(clinit) {
+        printf("init class %s by clinit\n", class->class_name);
         frame_t *clinit_frame = frame_new(clinit, NULL, class);
         push_frame(thread, clinit_frame);
         interpret(thread);
+        printf("finish init class %s\n", class->class_name);
     }
 
     class->state = CLASS_INITIALIZED;

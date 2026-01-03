@@ -36,6 +36,15 @@ void println_int(frame_t *frame) {
     printf("%d\n", val);
 }
 
+void println_string(frame_t *frame) {
+    object_t *str_obj = get_local(frame, 1)->ref;
+    if(str_obj == NULL || str_obj->strings == NULL || str_obj->strings[0] == '\0') {
+        printf("null\n");
+        return;
+    }
+    printf("%s\n", str_obj->strings);
+}
+
 class_t *fake_printstream_class() {
     class_t *class = malloc(sizeof(class_t));
     class->class_name = "java/io/PrintStream";
@@ -46,8 +55,16 @@ class_t *fake_printstream_class() {
     method->access_flags = METHOD_ACC_PUBLIC | METHOD_ACC_NATIVE | METHOD_ACC_FINAL;
     method->arg_slot_count = 1; // this + int parameter
     register_native(class->class_name, method->name, method->descriptor, println_int);
-    class->methods = malloc(sizeof(method_t));
+    class->methods_count = 2;
+    class->methods = malloc(class->methods_count * sizeof(method_t));
     class->methods[0] = *method;
-    class->methods_count = 1;
+
+    method_t *method2 = malloc(sizeof(method_t));
+    method2->name = "println";
+    method2->descriptor = "(Ljava/lang/String;)V";
+    method2->access_flags = METHOD_ACC_PUBLIC | METHOD_ACC_NATIVE | METHOD_ACC_FINAL;
+    method2->arg_slot_count = 1; // this + string parameter
+    register_native(class->class_name, method2->name, method2->descriptor, println_string);
+    class->methods[1] = *method2;
     return class;
 }

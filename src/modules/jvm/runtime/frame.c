@@ -111,3 +111,10 @@ void dump_frame(frame_t *frame) {
         printf("[DUMP] pc: %d / %d\n", frame->pc, frame->attr_code->code_length);
     }
 }
+
+void error_free(error_t *error) {
+    if(error) {
+        if(error->message) free(error->message);
+        free(error);
+    }
+}
