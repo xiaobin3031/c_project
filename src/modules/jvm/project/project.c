@@ -33,7 +33,6 @@ project_t *load_project(const char *root_path) {
             continue;
         }
 
-        printf("entry.d_name: %s\n", entry->d_name);
         snprintf(full_path, sizeof(full_path), "%s/%s", root_path, entry->d_name);
         struct stat st;
         if(stat(full_path, &st) != 0){

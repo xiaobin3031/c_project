@@ -18,6 +18,8 @@ float pop_float(frame_t *frame);
 
 double pop_double(frame_t *frame);
 
+void clear_operand_stack(frame_t *frame);
+
 void push_int(frame_t *frame, int32_t v);
 
 void push_long(frame_t *frame, long v);

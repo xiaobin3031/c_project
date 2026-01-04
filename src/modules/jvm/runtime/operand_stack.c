@@ -63,6 +63,10 @@ double pop_double(frame_t *frame) {
     return v;
 }
 
+void clear_operand_stack(frame_t *frame) {
+    frame->sp = 0;
+}
+
 void push_int(frame_t *frame, int32_t v) {
     push(frame)->bits = (uint32_t) v;
 }

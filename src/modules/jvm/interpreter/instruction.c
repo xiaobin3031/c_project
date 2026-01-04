@@ -33,6 +33,26 @@ static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char 
     }
 }
 
+static field_t *resolve_field(jvm_thread_t *thread, class_t *target_class, 
+    const char *field_name, const char *field_descriptor) {
+    ensure_class_initialized(target_class, thread);
+    if(target_class->state == CLASS_ERRONEOUS) {
+        return NULL;
+    }
+    for(u2 i = 0; i < target_class->fields_count; i++) {
+        field_t *local_field = &target_class->fields[i];
+        if(strcmp(field_name, local_field->name) == 0 && strcmp(field_descriptor, local_field->descriptor) == 0) {
+            return local_field;
+        }
+    }
+
+    if(target_class->super != NULL) {
+        return resolve_field(thread, target_class->super, field_name, field_descriptor);
+    }
+
+    return NULL;
+}
+
 static field_t *find_static_field(jvm_thread_t *thread, cp_info_t *cp_pools, u2 index) {
     cp_info_t info = cp_pools[index];
     check_cp_info_tag(info.tag, CONSTANT_Fieldref);
@@ -41,27 +61,21 @@ static field_t *find_static_field(jvm_thread_t *thread, cp_info_t *cp_pools, u2 
     if(field == NULL) {
         cp_class_t *class = get_cp_class(&cp_pools[fieldref->class_index]);
         class_t *target_class = load_class(get_utf8(&cp_pools[class->name_index]), thread);
-        ensure_class_initialized(target_class, thread);
-        if(target_class->state == CLASS_ERRONEOUS) {
-            return NULL;
-        }
         cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
         char *field_name = get_utf8(&cp_pools[nameandtype->name_index]);
         char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
-        for(u2 i = 0; i < target_class->fields_count; i++) {
-            field_t *local_field = &target_class->fields[i];
-            if(strcmp(field_name, local_field->name) == 0 && strcmp(field_descriptor, local_field->descriptor) == 0) {
-                fieldref->resolved_field = local_field;
-                field = local_field;
-                break;
-            }
+
+        field = resolve_field(thread, target_class, field_name, field_descriptor);
+
+        if(field == NULL) {
+            fprintf(stderr, "Field %s not found in class %s\n", field_name, target_class->class_name);
+            throw_error(thread, RUNTIME_ERROR_NoClassDefFoundError, "field is not resolved");
+            return NULL;
         }
+
+        fieldref->resolved_field = field;
     }
 
-    if(field == NULL) {
-        throw_error(thread, RUNTIME_ERROR_ClassNotDefinedError, "field is not resolved");
-        return NULL;
-    }
     if(field->access_flags & FIELD_ACC_STATIC) {
         return field;
     }
@@ -235,7 +249,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     while(frame->pc < code_length) {
         opcode = codes[frame->pc];
-        printf("opcode: %d\n", opcode);
+        // printf("opcode: %d\n", opcode);
         switch(opcode) {
             // Constants
             case OPCODE_nop: {   // 0x00,  // 00 
@@ -329,7 +343,7 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_ldc: {   // 0x12,  // 18 
                 u1 index = codes[frame->pc+1];
                 cp_info_t cp_info = cp_pools[index];
-                printf("ldc cp_info.tag: %d\n", cp_info.tag);
+                // printf("ldc cp_info.tag: %d\n", cp_info.tag);
                 if(is_cp_info_tag(cp_info.tag, CONSTANT_Integer)) {
                     push_int(frame, (int32_t)parse_to_u4(cp_info.info));
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_Float)) {

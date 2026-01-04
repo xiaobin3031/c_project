@@ -54,11 +54,20 @@ void println_boolean(frame_t *frame) {
     }
 }
 
+void println_object(frame_t *frame) {
+    object_t *obj = get_local(frame, 1)->ref;
+    if(obj == NULL) {
+        printf("null\n");
+        return;
+    }
+    printf("%p\n", obj->class);
+}
+
 class_t *fake_printstream_class() {
     class_t *class = malloc(sizeof(class_t));
     class->class_name = "java/io/PrintStream";
     class->state = CLASS_INITIALIZED;
-    class->methods_count = 3;
+    class->methods_count = 4;
     method_t *method = malloc(sizeof(method_t));
     method->name = "println";
     method->descriptor = "(I)V";
@@ -83,5 +92,13 @@ class_t *fake_printstream_class() {
     method3->arg_slot_count = 1;
     register_native(class->class_name, method3->name, method3->descriptor, println_boolean);
     class->methods[2] = *method3;
+
+    method_t *method4 = malloc(sizeof(method_t));
+    method4->name = "println";
+    method4->descriptor = "(Ljava/lang/Object;)V";
+    method4->access_flags = METHOD_ACC_PUBLIC | METHOD_ACC_NATIVE | METHOD_ACC_FINAL;
+    method4->arg_slot_count = 1;
+    register_native(class->class_name, method4->name, method4->descriptor, println_object);
+    class->methods[3] = *method4;
     return class;
 }

@@ -15,11 +15,10 @@ class_t *read_class_file(const char *path) {
 
     class_file = fopen(path, "rb");
     if(!class_file) {
-        fprintf(stderr, "class file read error: %s\n", path);
         return NULL;
     }
 
-    printf("read class file: %s\n", path);
+    // printf("read class file: %s\n", path);
 
     class_t *class = calloc(1, sizeof(class_t));
     class->magic = read_u4(class_file);
