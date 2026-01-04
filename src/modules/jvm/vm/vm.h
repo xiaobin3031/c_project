@@ -9,7 +9,7 @@ method_t *resolve_method(class_t *class, const char *method_name, const char *me
 
 class_t *load_class(const char *class_file, jvm_thread_t *thread);
 void link_class(class_t *class);
-void init_class(class_t *class, jvm_thread_t *thread);
+void ensure_class_initialized(class_t *class, jvm_thread_t *thread);
 
 void prepare_run(jvm_thread_t *thread);
 

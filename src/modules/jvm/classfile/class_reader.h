@@ -7,6 +7,8 @@
 #include "field.h"
 #include <pthread.h>
 
+typedef struct class_t class_t;
+
 enum class_acc_flags {
     CLASS_ACC_PUBLIC = 0x0001,
     CLASS_ACC_FINAL = 0x0010,
@@ -28,7 +30,7 @@ enum class_state {
     CLASS_ERRONEOUS = 5
 };
 
-typedef struct {
+struct class_t {
     u4 magic;
     u2 minor_version;
     u2 major_version;
@@ -38,7 +40,7 @@ typedef struct {
     u2 this_class;
     u2 super_class;
     u2 interface_count;
-    // u2 **interfaces;
+    u2 *interfaces;
     u2 fields_count;
     field_t *fields;
     u2 methods_count;
@@ -56,8 +58,14 @@ typedef struct {
     pthread_mutex_t lock;
     enum class_state state;
 
-} class_t;
+    class_t *super;
+
+    class_t *interface_class;
+
+};
 
 class_t *read_class_file(const char *path);
 
 void class_free(class_t *class);
+
+int is_class(class_t *class);

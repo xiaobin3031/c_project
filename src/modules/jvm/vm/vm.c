@@ -90,8 +90,8 @@ class_t *load_class(const char *class_file, jvm_thread_t *thread) {
                 fprintf(stderr, "NoClassDefFoundError: %s\n", class_file);
                 abort();
             }
+            class->state = CLASS_LOADED;
             link_class(class);
-            init_class(class, thread);
 
             return class;
         }
@@ -104,6 +104,7 @@ class_t *load_class(const char *class_file, jvm_thread_t *thread) {
             class_t *class = calloc(1, sizeof(class_t));
             class->class_name = strdup(class_file);
             arraylist_add(g_project->class_file_path, class);
+            class->state = CLASS_LINKED;
             return class;
         }
 
@@ -112,9 +113,7 @@ class_t *load_class(const char *class_file, jvm_thread_t *thread) {
     }
     
     if(class->state == CLASS_ERRONEOUS) {
-        thread->error = malloc(sizeof(error_t));
-        thread->error->type = RUNTIME_ERROR_ClassNotDefinedError;
-        thread->error->message = strdup("Class is in erroneous state");
+        thread->error = error_new(RUNTIME_ERROR_ClassNotDefinedError, "Class is in erroneous state");
     }
 
     return class;
@@ -188,20 +187,19 @@ void link_class(class_t *class) {
     class->state = CLASS_LINKED;
 }
 
-void init_class(class_t *class, jvm_thread_t *thread) {
+void ensure_class_initialized(class_t *class, jvm_thread_t *thread) {
     if(class->state < CLASS_LINKED) {
-        fprintf(stderr, "class %s is not linked yet\n", class->class_name);
+        fprintf(stderr, "class %s is not linked yet, state: %d\n", class->class_name, class->state);
         abort();
     }
-    if(class->state >= CLASS_INITIALIZED) {
+    if(class->state >= CLASS_INITING) {
         return;
     }
     if(class->state == CLASS_ERRONEOUS) {
-        thread->error = malloc(sizeof(error_t));
-        thread->error->type = RUNTIME_ERROR_ClassNotDefinedError;
-        thread->error->message = strdup("Class is in erroneous state");
+        thread->error = error_new(RUNTIME_ERROR_ClassNotDefinedError, "Class is in erroneous state");
         return;
     }
+
     pthread_mutex_lock(&class->lock);
     if(class->state >= CLASS_INITIALIZED) {
         pthread_mutex_unlock(&class->lock);
@@ -214,8 +212,19 @@ void init_class(class_t *class, jvm_thread_t *thread) {
         cp_info_t super_class_info = class->cp_pools[class->super_class];
         check_cp_info_tag(super_class_info.tag, CONSTANT_Class);
         char *super_class_name = resolve_class_name(class, class->super_class);
-        if(strcmp(super_class_name, "java/lang/Object") != 0) 
-            load_class(super_class_name, thread);
+        if(strcmp(super_class_name, "java/lang/Object") != 0) {
+            class_t *super_class = load_class(super_class_name, thread);
+            class->super = super_class;
+        }
+    }
+    if(class->interface_count > 0) {
+        class->interface_class = calloc(class->interface_count, sizeof(class_t *));
+        for(u2 i=0;i<class->interface_count;i++) {
+            u2 interface_index = class->interfaces[i];
+            char *interface_name = resolve_class_name(class, interface_index);
+            class_t *interface_class = load_class(interface_name, thread);
+            class->interface_class[i] = *interface_class;
+        }
     }
 
     method_t *clinit = resolve_clinit(class);
@@ -258,6 +267,7 @@ void run(const char *main_class_file, project_t *project) {
     prepare_run(main_thread);
 
     class_t *main_class = load_class(main_class_file, main_thread);
+    ensure_class_initialized(main_class, main_thread);
     method_t *main_method = resolve_method(main_class, "main", "([Ljava/lang/String;)V");
     frame_t *frame = frame_new(main_method, NULL, main_class);
 

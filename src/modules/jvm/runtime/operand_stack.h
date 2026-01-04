@@ -4,6 +4,8 @@
 #include "../utils/jtype.h"
 #include <ctype.h>
 
+slot_t *peek(frame_t *frame);
+
 slot_t *pop(frame_t *frame);
 
 slot_t *push(frame_t *frame);

@@ -23,6 +23,7 @@ typedef struct {
 
     u1 atype;
     int acount;
+    u1 deeps;
 
     char *strings;
 } object_t;

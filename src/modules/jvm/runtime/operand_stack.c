@@ -4,6 +4,19 @@
 #include <ctype.h>
 #include <string.h>
 
+slot_t *peek(frame_t *frame) {
+    if(frame->sp <= 0) {
+        dump_frame(frame);
+        perror("stack underflow");
+        abort();
+    }
+    if(frame->sp >= frame->operand_stack_size) {
+        dump_frame(frame);
+        perror("stack overflow");
+        abort();
+    }
+    return &frame->operand_stack[frame->sp - 1];
+}
 
 slot_t *pop(frame_t *frame) {
     if(frame->sp <= 0) {

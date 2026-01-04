@@ -22,8 +22,7 @@
 static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char *message, ...) {
     va_list args;
 
-    thread->error = malloc(sizeof(error_t));
-    thread->error->type = type;
+    thread->error = error_new(type, NULL);
     if(message != NULL) {
         va_start(args, message);
         char *formatted_message = NULL;
@@ -42,6 +41,7 @@ static field_t *find_static_field(jvm_thread_t *thread, cp_info_t *cp_pools, u2 
     if(field == NULL) {
         cp_class_t *class = get_cp_class(&cp_pools[fieldref->class_index]);
         class_t *target_class = load_class(get_utf8(&cp_pools[class->name_index]), thread);
+        ensure_class_initialized(target_class, thread);
         if(target_class->state == CLASS_ERRONEOUS) {
             return NULL;
         }
@@ -82,6 +82,7 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
     target_cp_class = get_cp_class(&cp_pools[methodref->class_index]);
     target_class_name = get_utf8(&cp_pools[target_cp_class->name_index]);
     target_class = load_class(target_class_name, thread);
+    ensure_class_initialized(target_class, thread);
     if(target_class->state == CLASS_ERRONEOUS) {
         // 已经在里面插入了错误信息，直接返回
         return 1;
@@ -129,6 +130,97 @@ static void go_to_by_index(frame_t *frame) {
     u1 bb2 = frame->attr_code->code[frame->pc+2];
     int16_t index = (int16_t)((bb1 << 8) | bb2);
     frame->pc += index;
+}
+
+static int is_class_assignable(class_t *from, class_t *to) {
+    if(is_class(to)) {
+        if(from == to) {
+            return 1;
+        }
+        for(class_t *super = from->super; super; super = super->super) {
+            if(super == to) return 1;
+        }
+    }else if(to->access_flags && CLASS_ACC_INTERFACE) {
+        // from实现了to接口
+        for(int i=0;i<from->interface_count;i++) {
+            class_t interface = from->interface_class[i];
+            if(&interface == to) return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int is_assignable(object_t *from, object_t *to) {
+    // to must be class, array, or interface
+    if(from->atype > 0) {
+        if(to->atype > 0) {
+            if(from->atype == ATYPE_REF && to->atype == ATYPE_REF) {
+                return is_class_assignable(from->class, to->class);
+            }else{
+                return from->atype == to->atype ? 1 : 0;
+            }
+        }else {
+            return (strcmp(to->class->class_name, "java/lang/Object") == 0
+                || strcmp(to->class->class_name, "java/lang/Cloneable") == 0
+                || strcmp(to->class->class_name, "java/io/Serializable") == 0) ? 1 : 0;
+        }
+    }
+    return is_class_assignable(from->class, to->class);
+}
+
+static object_t *build_class_object(char *class_name, jvm_thread_t *thread) {
+    object_t *to = calloc(1, sizeof(object_t));
+    char *ptr = class_name;
+    if(*ptr == '[') {
+        while(*ptr == '[') {
+            to->deeps++;
+            ptr++;
+        }
+        if(*ptr == 'L') {
+            char *tmp = ptr + 1;
+            while(*tmp != ';') {
+                tmp++;
+            }
+            *tmp = '\0';
+            to->class = load_class(ptr + 1, thread);
+            to->atype = ATYPE_REF;
+        }else {
+            switch(*ptr) {
+                case 'Z':
+                    to->atype = ATYPE_BOOLEAN;
+                    break;
+                case 'B':
+                    to->atype = ATYPE_BYTE;
+                    break;
+                case 'C':
+                    to->atype = ATYPE_CHAR;
+                    break;
+                case 'D':
+                    to->atype = ATYPE_DOUBLE;
+                    break;
+                case 'F':
+                    to->atype = ATYPE_FLOAT;
+                    break;
+                case 'I':
+                    to->atype = ATYPE_INT;
+                    break;
+                case 'J':
+                    to->atype = ATYPE_LONG;
+                    break;
+                case 'S':
+                    to->atype = ATYPE_SHORT;
+                    break;
+                default:
+                    fprintf(stderr, "unknown type: %s\n", ptr);
+                    abort();
+            }
+        }
+    }else{
+        to->class = load_class(class_name, thread);
+    }
+
+    return to;
 }
 
 void exec_instruction(jvm_thread_t *thread) {
@@ -533,8 +625,9 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_astore_0: {   // 0x4b,       // 75 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                get_local(frame, 0)->ref = pop(frame)->ref;
+                frame->pc++;
+                break;
             }
             case OPCODE_astore_1: {   // 0x4c,       // 76 
                 get_local(frame, 1)->ref = pop(frame)->ref;
@@ -542,12 +635,14 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_astore_2: {   // 0x4d,       // 77 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                get_local(frame, 2)->ref = pop(frame)->ref;
+                frame->pc++;
+                break;
             }
             case OPCODE_astore_3: {   // 0x4e,       // 78 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                get_local(frame, 3)->ref = pop(frame)->ref;
+                frame->pc++;
+                break;
             }
             case OPCODE_iastore: {   // 0x4f,       // 79 
                 int32_t value = pop_int(frame);
@@ -1201,6 +1296,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
                 char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
                 class_t *local_class = load_class(class_name, thread);
+                ensure_class_initialized(local_class, thread);
                 if(local_class->state == CLASS_ERRONEOUS) {
                     return;
                 }
@@ -1277,7 +1373,18 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 high = codes[frame->pc+1];
                 u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
-                cp_info_t cp_info = cp_pools[index];
+                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
+                object_t *ref = peek(frame)->ref;
+                if(ref != NULL) {
+                    char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
+                    object_t *to = build_class_object(class_name, thread);
+                    if(!is_assignable(ref, to)) {
+                        throw_error(thread, RUNTIME_ERROR_ClassCastException, NULL);
+                        free(to);
+                        return;
+                    }
+                    free(to);
+                }
 
                 frame->pc +=3;
                 break;
@@ -1292,11 +1399,14 @@ void exec_instruction(jvm_thread_t *thread) {
                     push_int(frame, 0);
                 }else {
                     char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
-                    if(strcmp(class_name, ref->class->class_name) == 0) {
+                    object_t *to = build_class_object(class_name, thread);
+                    if(is_assignable(ref, to)) {
                         push_int(frame, 1);
-                    }else {
+                    }else{
                         push_int(frame, 0);
                     }
+
+                    free(to);
                 }
                 frame->pc += 3;
                 break;

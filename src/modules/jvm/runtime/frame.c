@@ -5,6 +5,17 @@
 #include "local_vars.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+error_t *error_new(enum run_error_e type, const char *message) {
+    error_t *error = malloc(sizeof(error_t));
+    error->type = type;
+    error->message = NULL;
+    if(message && *message) {
+        error->message = strdup(message);
+    }
+    return error;
+}
 
 void pop_frame(jvm_thread_t *thread) {
     frame_t *current_frame = thread->current_frame;

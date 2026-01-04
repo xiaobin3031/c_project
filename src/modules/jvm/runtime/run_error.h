@@ -7,6 +7,7 @@ enum run_error_e{
     RUNTIME_ERROR_ArrayIndexOutOfBoundsException,
     RUNTIME_ERROR_ClassNotDefinedError,
     RUNTIME_ERROR_IncompatibleClassChangeError,
+    RUNTIME_ERROR_ClassCastException,
 
 
     RUNTIME_ERROR_RuntimeException = 99,

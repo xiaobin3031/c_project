@@ -37,6 +37,8 @@ struct jvm_thread_t {
     error_t *error;
 };
 
+error_t *error_new(enum run_error_e type, const char *message);
+
 void pop_frame(jvm_thread_t *thread);
 
 void push_frame(jvm_thread_t *thread, frame_t *frame);

@@ -45,17 +45,26 @@ void println_string(frame_t *frame) {
     printf("%s\n", str_obj->strings);
 }
 
+void println_boolean(frame_t *frame) {
+    int32_t val = (int32_t)get_local(frame, 1)->bits;
+    if(val == 0) {
+        printf("false\n");
+    } else {
+        printf("true\n");
+    }
+}
+
 class_t *fake_printstream_class() {
     class_t *class = malloc(sizeof(class_t));
     class->class_name = "java/io/PrintStream";
     class->state = CLASS_INITIALIZED;
+    class->methods_count = 3;
     method_t *method = malloc(sizeof(method_t));
     method->name = "println";
     method->descriptor = "(I)V";
     method->access_flags = METHOD_ACC_PUBLIC | METHOD_ACC_NATIVE | METHOD_ACC_FINAL;
     method->arg_slot_count = 1; // this + int parameter
     register_native(class->class_name, method->name, method->descriptor, println_int);
-    class->methods_count = 2;
     class->methods = malloc(class->methods_count * sizeof(method_t));
     class->methods[0] = *method;
 
@@ -66,5 +75,13 @@ class_t *fake_printstream_class() {
     method2->arg_slot_count = 1; // this + string parameter
     register_native(class->class_name, method2->name, method2->descriptor, println_string);
     class->methods[1] = *method2;
+
+    method_t *method3 = malloc(sizeof(method_t));
+    method3->name = "println";
+    method3->descriptor = "(Z)V";
+    method3->access_flags = METHOD_ACC_PUBLIC | METHOD_ACC_NATIVE | METHOD_ACC_FINAL;
+    method3->arg_slot_count = 1;
+    register_native(class->class_name, method3->name, method3->descriptor, println_boolean);
+    class->methods[2] = *method3;
     return class;
 }

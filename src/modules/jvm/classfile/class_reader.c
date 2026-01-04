@@ -31,8 +31,12 @@ class_t *read_class_file(const char *path) {
     class->this_class = read_u2(class_file);
     class->super_class = read_u2(class_file);
     class->interface_count = read_u2(class_file);
-    // todo 暂时跳过
-    read_bytes(class_file, class->interface_count);
+    if(class->interface_count > 0) {
+        class->interfaces = calloc(class->interface_count, sizeof(u2));
+        for(u2 i=0;i<class->interface_count;i++) {
+            class->interfaces[i] = read_u2(class_file);
+        }
+    }
     class->fields_count = read_u2(class_file);
     class->fields = read_fields(class_file, class->fields_count, class->cp_pools);
     class->methods_count = read_u2(class_file);
@@ -79,10 +83,22 @@ class_t *read_class_file(const char *path) {
     }
 
     class->state = CLASS_LOADED;
+    class->super = NULL;
+    class->interface_class = NULL;
 
     return class;
 }
 
+
+int is_class(class_t *class) {
+    return !(
+        class->access_flags & CLASS_ACC_INTERFACE
+        || class->access_flags & CLASS_ACC_ANNOTATION
+        || class->access_flags & CLASS_ACC_MODULE
+        || class->access_flags & CLASS_ACC_ENUM
+        || class->access_flags & CLASS_ACC_SYNTHETIC
+    );
+}
 
 
 
