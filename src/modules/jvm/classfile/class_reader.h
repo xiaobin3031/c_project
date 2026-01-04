@@ -24,7 +24,8 @@ enum class_state {
     CLASS_LOADED = 1,
     CLASS_LINKED = 2,
     CLASS_INITING = 3,
-    CLASS_INITIALIZED = 4
+    CLASS_INITIALIZED = 4,
+    CLASS_ERRONEOUS = 5
 };
 
 typedef struct {

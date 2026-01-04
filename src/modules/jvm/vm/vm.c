@@ -76,40 +76,49 @@ class_t *load_class(const char *class_file, jvm_thread_t *thread) {
             break;
         }
     }
-    if(class) return class;
+    if(class == NULL) {
+        char full_path[1024];
+        snprintf(full_path, sizeof(full_path), "%s/%s.class", g_project->root_path, class_file);
+        class = read_class_file(full_path);
+        if(class) {
+            arraylist_add(g_class_list, class);
+            // if(class->major_version != 61) {
+            //     perror("UnsupportedClassVersionError");
+            //     abort();
+            // }
+            if(strcmp(class->class_name, class_file) != 0) {
+                fprintf(stderr, "NoClassDefFoundError: %s\n", class_file);
+                abort();
+            }
+            link_class(class);
+            init_class(class, thread);
 
-    char full_path[1024];
-    snprintf(full_path, sizeof(full_path), "%s/%s.class", g_project->root_path, class_file);
-    class = read_class_file(full_path);
-    if(class) {
-        arraylist_add(g_class_list, class);
-        // if(class->major_version != 61) {
-        //     perror("UnsupportedClassVersionError");
-        //     abort();
-        // }
-        if(strcmp(class->class_name, class_file) != 0) {
-            fprintf(stderr, "NoClassDefFoundError: %s\n", class_file);
-            abort();
+            return class;
         }
-        link_class(class);
-        init_class(class, thread);
 
-        return class;
+        // todo 这里后续要删掉
+        if(strcmp(class_file, "java/lang/String") == 0 
+            || strcmp(class_file, "java/lang/System") == 0
+            || strcmp(class_file, "java/lang/RuntimeException") == 0
+            || strcmp(class_file, "java/lang/Object") == 0) {
+            class_t *class = calloc(1, sizeof(class_t));
+            class->class_name = strdup(class_file);
+            arraylist_add(g_project->class_file_path, class);
+            return class;
+        }
+
+        fprintf(stderr, "ClassFormatError: %s\n", class_file);
+        abort();
+    }
+    
+    if(class->state == CLASS_ERRONEOUS) {
+        thread->error = malloc(sizeof(error_t));
+        thread->error->type = RUNTIME_ERROR_ClassNotDefinedError;
+        thread->error->message = strdup("Class is in erroneous state");
     }
 
-    // todo 这里后续要删掉
-    if(strcmp(class_file, "java/lang/String") == 0 
-        || strcmp(class_file, "java/lang/System") == 0
-        || strcmp(class_file, "java/lang/RuntimeException") == 0
-        || strcmp(class_file, "java/lang/Object") == 0) {
-        class_t *class = calloc(1, sizeof(class_t));
-        class->class_name = strdup(class_file);
-        arraylist_add(g_project->class_file_path, class);
-        return class;
-    }
+    return class;
 
-    fprintf(stderr, "ClassFormatError: %s\n", class_file);
-    abort();
 }
 
 void link_class(class_t *class) { 
@@ -187,6 +196,12 @@ void init_class(class_t *class, jvm_thread_t *thread) {
     if(class->state >= CLASS_INITIALIZED) {
         return;
     }
+    if(class->state == CLASS_ERRONEOUS) {
+        thread->error = malloc(sizeof(error_t));
+        thread->error->type = RUNTIME_ERROR_ClassNotDefinedError;
+        thread->error->message = strdup("Class is in erroneous state");
+        return;
+    }
     pthread_mutex_lock(&class->lock);
     if(class->state >= CLASS_INITIALIZED) {
         pthread_mutex_unlock(&class->lock);
@@ -205,11 +220,19 @@ void init_class(class_t *class, jvm_thread_t *thread) {
 
     method_t *clinit = resolve_clinit(class);
     if(clinit) {
+        jvm_thread_t *clinit_thread = jvm_thread_new();
         printf("init class %s by clinit\n", class->class_name);
         frame_t *clinit_frame = frame_new(clinit, NULL, class);
-        push_frame(thread, clinit_frame);
-        interpret(thread);
-        printf("finish init class %s\n", class->class_name);
+        push_frame(clinit_thread, clinit_frame);
+        interpret(clinit_thread);
+        error_t *error = clinit_thread->error;
+        free(clinit_thread);
+        if(error != NULL) {
+            class->state = CLASS_ERRONEOUS;
+            thread->error = error;
+            pthread_mutex_unlock(&class->lock);
+            return;
+        }
     }
 
     class->state = CLASS_INITIALIZED;
@@ -241,4 +264,9 @@ void run(const char *main_class_file, project_t *project) {
     main_thread->current_frame = NULL;
     push_frame(main_thread, frame);
     interpret(main_thread);
+    if(main_thread->error != NULL) {
+        fprintf(stderr, "Uncaught exception: %s\n", main_thread->error->message);
+        fprintf(stderr, "Program exit by Uncaught exception\n");
+        exit(1);
+    }
 }
