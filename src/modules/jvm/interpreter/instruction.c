@@ -5,13 +5,13 @@
 #include "../classfile/constant_pool.h"
 #include "../classfile/attr.h"
 #include "../runtime/frame.h"
-#include "../vm/vm.h"
 #include "../utils/slots.h"
 #include "../utils/jtype.h"
 #include "../native/string.h"
 #include "../native/native.h"
 #include "../runtime/operand_stack.h"
 #include "../runtime/local_vars.h"
+#include "../vm/classload.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -131,7 +131,7 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
     frame_t *run_frame = frame_new(call_method, cur_frame, class);
     if(call_method->access_flags & METHOD_ACC_NATIVE) {
         native_fn fn = find_native_method(target_class_name, call_method->name, call_method->descriptor);
-        fn(run_frame);
+        if(fn != NULL) fn(run_frame);
         return 0;
     }else{
         push_frame(thread, run_frame);
@@ -249,7 +249,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     while(frame->pc < code_length) {
         opcode = codes[frame->pc];
-        // printf("opcode: %d\n", opcode);
+        printf("opcode: %d\n", opcode);
         switch(opcode) {
             // Constants
             case OPCODE_nop: {   // 0x00,  // 00 
@@ -257,8 +257,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_aconst_null: {   // 0x01,  // 01 
-                fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                abort();
+                slot_t *slot = push(frame);
+                slot->bits = 0x0;
+                slot->ref = NULL;
+                frame->pc++;
+                break;
             }
             case OPCODE_iconst_m1: {   // 0x02,  // 02 
                 push_int(frame, -1);

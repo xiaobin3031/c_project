@@ -41,6 +41,8 @@ class_bytes_t *class_bytes_new(u1 *bytes, size_t len) {
     char *memory = malloc(sizeof(class_bytes_t) + sizeof(u1) * len);
     class_bytes_t *class_bytes = (class_bytes_t *)memory;
     class_bytes->bytes = (u1*)(memory + sizeof(class_bytes_t));
+    memcpy(class_bytes->bytes, bytes, len);
     class_bytes->offset = 0;
+    class_bytes->size = len;
     return class_bytes;
 }

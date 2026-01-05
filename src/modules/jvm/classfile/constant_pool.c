@@ -210,7 +210,8 @@ cp_info_t *read_constant_pool_bytes(class_bytes_t *class_bytes, u2 pool_len) {
             }
             case CONSTANT_MethodType:
             case CONSTANT_String:
-             {
+            case CONSTANT_Package:
+            case CONSTANT_Module: {
                 info.info = read_bytes_bytes(class_bytes, 2);
                 break;
             }

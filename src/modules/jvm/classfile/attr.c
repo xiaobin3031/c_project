@@ -186,7 +186,6 @@ attribute_t *read_attributes_bytes(class_bytes_t *class_bytes, u2 attr_count, cp
             attr.tag = ATTR_CONSTANT_VALUE;
         }else if(strcmp(attr_name, "Exceptions") == 0) {
             attr.tag = ATTR_EXCEPTIONS;
-            
         }else if(strcmp(attr_name, "InnerClasses") == 0) {
             attr.tag = ATTR_INNER_CLASSES;
         }else if(strcmp(attr_name, "LineNumberTable") == 0) {
@@ -211,6 +210,10 @@ attribute_t *read_attributes_bytes(class_bytes_t *class_bytes, u2 attr_count, cp
             attr.tag = ATTR_NEST_HOST;
         }else if(strcmp(attr_name, "NestMembers") == 0) {
             attr.tag = ATTR_NEST_MEMBERS;
+        }else if(strcmp(attr_name, "ModuleHashes") == 0) {
+            attr.tag = ATTR_MODULE_HASHES;
+        }else if(strcmp(attr_name, "ModuleTarget") == 0) {
+            attr.tag = ATTR_MODULE_TARGET;
         }
         else {
             printf("unknown attribute [%s]\n", attr_name);

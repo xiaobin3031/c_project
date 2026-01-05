@@ -34,7 +34,9 @@ typedef enum {
     ATTR_NEST_HOST = 26,
     ATTR_NEST_MEMBERS = 27,
     ATTR_RECORD = 28,
-    ATTR_PERMITTED_SUBCLASSES = 29
+    ATTR_PERMITTED_SUBCLASSES = 29,
+    ATTR_MODULE_HASHES = 30,
+    ATTR_MODULE_TARGET = 31,
 } code_attr_tag;
 
 typedef enum {

@@ -3,7 +3,7 @@
 #include "../classfile/constant_pool.h"
 #include "../runtime/frame.h"
 #include "../runtime/operand_stack.h"
-#include "../vm/vm.h"
+#include "../vm/classload.h"
 #include <stdio.h>
 #include <stdlib.h>
 
