@@ -262,6 +262,9 @@ void ensure_class_initialized(class_t *class, jvm_thread_t *thread) {
     pthread_mutex_unlock(&class->lock);
 }
 
+void load_jdk_class(project_t *project, jvm_thread_t *thread, const char *class_name) { 
+}
+
 void prepare_run(jvm_thread_t *thread) {
     load_class("java/lang/Object", thread);
     class_t *system_class = fake_system_class();
@@ -271,6 +274,8 @@ void prepare_run(jvm_thread_t *thread) {
     load_class("java/lang/String", thread);
     load_class("java/lang/Throwable", thread);
     load_class("java/lang/RuntimeException", thread);
+
+    // load jdk classes
 }
 
 void run(const char *main_class_file, project_t *project) {

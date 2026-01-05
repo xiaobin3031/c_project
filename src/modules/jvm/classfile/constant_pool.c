@@ -1,5 +1,6 @@
 #include "../utils/bytes.h"
 #include "constant_pool.h"
+#include "../utils/jtype.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -116,6 +117,101 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
             case CONSTANT_String:
              {
                 info.info = read_bytes(file, 2);
+                break;
+            }
+            // todo 后续扩展更多tag
+            default: {
+                printf("constant pool unknown tag type: %d\n", tag);
+                abort();
+            }
+        }
+        if(tag != CONSTANT_Long && tag != CONSTANT_Double) {
+            cps[i] = info;
+        }
+    }
+    return cps;
+}
+
+cp_info_t *read_constant_pool_bytes(class_bytes_t *class_bytes, u2 pool_len) {
+    if(pool_len <= 1) return NULL;
+
+    cp_info_t *cps = malloc(sizeof(cp_info_t) * pool_len);
+    for(int i=1;i<pool_len;i++) {
+        u1 tag = read_bytes_u1(class_bytes);
+        cp_info_t info;
+        info.tag = tag;
+        switch(tag) {
+            case CONSTANT_Utf8: {
+                u2 high = read_bytes_u1(class_bytes);
+                u2 low = read_bytes_u1(class_bytes);
+                u2 length = (high << 8) | low;
+                u1 *utf8_bytes = malloc(2 + length + 1);
+                if(length > 0) {
+                    u1 *tmp = read_bytes_bytes(class_bytes, length);
+                    memcpy(utf8_bytes + 2, tmp, length);
+                    free(tmp);
+                }
+                utf8_bytes[0] = high;
+                utf8_bytes[1] = low;
+                utf8_bytes[2 + length] = '\0';
+                info.info = utf8_bytes;
+                break;
+            }
+            case CONSTANT_MethodHandle: {
+                info.info = read_bytes_bytes(class_bytes, 3);
+                break;
+            }
+            case CONSTANT_Methodref: {
+                cp_methodref_t *methodref = malloc(sizeof(cp_methodref_t));
+                methodref->class_index = read_bytes_u2(class_bytes);
+                methodref->name_and_type_index = read_bytes_u2(class_bytes);
+                methodref->resolved_method = NULL;
+                info.info = (u1*) methodref;
+                break;
+            }
+            case CONSTANT_Fieldref: {
+                cp_fieldref_t *fieldref = malloc(sizeof(cp_fieldref_t));
+                fieldref->class_index = read_bytes_u2(class_bytes);
+                fieldref->name_and_type_index = read_bytes_u2(class_bytes);
+                fieldref->resolved_field = NULL;
+                info.info = (u1*) fieldref;
+                break;
+            }
+            case CONSTANT_NameAndType: {
+                cp_nameandtype_t *nameandtype = malloc(sizeof(cp_nameandtype_t));
+                nameandtype->name_index = read_bytes_u2(class_bytes);
+                nameandtype->descriptor_index = read_bytes_u2(class_bytes);
+                info.info = (u1*) nameandtype;
+                break;
+            }
+            case CONSTANT_Integer: 
+            case CONSTANT_InterfaceMethodref:
+            case CONSTANT_Dynamic:
+            case CONSTANT_InvokeDynamic:
+            case CONSTANT_Float: {
+                info.info = read_bytes_bytes(class_bytes, 4);
+                break;
+            }
+            case CONSTANT_Long:
+            case CONSTANT_Double: {
+                info.info = read_bytes_bytes(class_bytes, 8);
+                cps[i] = info;
+                i++;
+
+                cps[i].tag = 0;
+                cps[i].info = NULL;
+                break;
+            }
+            case CONSTANT_Class: {
+                cp_class_t *class = malloc(sizeof(cp_class_t));
+                class->name_index = read_bytes_u2(class_bytes);
+                info.info = (u1*) class;
+                break;
+            }
+            case CONSTANT_MethodType:
+            case CONSTANT_String:
+             {
+                info.info = read_bytes_u2(class_bytes);
                 break;
             }
             // todo 后续扩展更多tag

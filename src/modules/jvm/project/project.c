@@ -1,5 +1,8 @@
 #include "project.h"
 #include "../../../core/list/arraylist.h"
+#include "../classfile/class_reader.h"
+#include "../../../core/utils.h"
+#include "../utils/miniz.h"
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
@@ -46,7 +49,46 @@ project_t *load_project(const char *root_path) {
 
     }
 
+
+
     return project;
+}
+
+void jdk_load(project_t *project, const char *jdk_root) {
+    char buffer[1024];
+    mz_zip_archive zip;
+
+    sprintf(buffer, "%s/jmods/java.base.jmod", jdk_root);
+    memset(&zip, 0, sizeof(zip));
+    if (!mz_zip_reader_init_file(&zip, buffer, 0)) {
+        fprintf(stderr, "open jmod failed");
+        return;
+    }
+
+    // 获取文件总数
+    mz_uint num = mz_zip_reader_get_num_files(&zip);
+    for (mz_uint i = 0; i < num; i++) {
+        mz_zip_archive_file_stat st;
+
+        if (!mz_zip_reader_file_stat(&zip, i, &st))
+            continue;
+
+        if (st.m_is_directory)
+            continue;
+
+        if (!start_with(st.m_filename, "classes/"))
+            continue;
+
+        if (!end_with(st.m_filename, ".class"))
+            continue;
+
+        // st.m_filename 示例：
+        // classes/java/lang/Object.class
+        char *filename = strdup(st.m_filename);
+        size_t size;
+        void* data = mz_zip_reader_extract_to_heap(&zip, i, &size, 0);
+        class_bytes_t *class_bytes = class_bytes_new((u1*)data, size);
+    }
 }
 
 

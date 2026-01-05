@@ -5,9 +5,42 @@
 #include "field.h"
 #include "method_info.h"
 #include "attr.h"
+#include "../utils/jtype.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void fill_class_info(class_t *class) {
+    cp_info_t cp_info = class->cp_pools[class->this_class];
+    check_cp_info_tag(cp_info.tag, CONSTANT_Class);
+    class->class_name = get_utf8(&class->cp_pools[((cp_class_t*)cp_info.info)->name_index]);
+    char *class_name = strdup(class->class_name);
+    char *ptr = class_name;
+    char *simple_name = ptr;
+    while(*ptr != '\0') {
+        if(*ptr == '/') {
+            simple_name = ptr + 1;
+        }else if(*ptr == '.'){
+            *ptr = '\0';
+            break;
+        }
+        ptr++;
+    }
+    class->class_simple_name = strdup(simple_name);
+    free(class_name);
+
+    if(class->fields_count > 0) {
+        u2 total_field_slots = 0;
+        for(u2 i=0;i<class->fields_count;i++) {
+            total_field_slots += class->fields[i].slot_count;
+        }
+        class->total_field_slots = total_field_slots;
+    }
+
+    class->state = CLASS_LOADED;
+    class->super = NULL;
+    class->interface_class = NULL;
+}
 
 class_t *read_class_file(const char *path) {
 
@@ -55,37 +88,53 @@ class_t *read_class_file(const char *path) {
 
     fclose(class_file);
 
-    cp_info_t cp_info = class->cp_pools[class->this_class];
-    check_cp_info_tag(cp_info.tag, CONSTANT_Class);
-    class->class_name = get_utf8(&class->cp_pools[((cp_class_t*)cp_info.info)->name_index]);
-    char *class_name = strdup(class->class_name);
-    char *ptr = class_name;
-    char *simple_name = ptr;
-    while(*ptr != '\0') {
-        if(*ptr == '/') {
-            simple_name = ptr + 1;
-        }else if(*ptr == '.'){
-            *ptr = '\0';
-            break;
-        }
-        ptr++;
-    }
-    class->class_simple_name = strdup(simple_name);
-    free(class_name);
-
-    if(class->fields_count > 0) {
-        u2 total_field_slots = 0;
-        for(u2 i=0;i<class->fields_count;i++) {
-            total_field_slots += class->fields[i].slot_count;
-        }
-        class->total_field_slots = total_field_slots;
-    }
-
-    class->state = CLASS_LOADED;
-    class->super = NULL;
-    class->interface_class = NULL;
+    fill_class_info(class);
 
     return class;
+}
+
+class_t *read_by_class_bytes(class_bytes_t *class_bytes) {
+
+    class_t *class = calloc(1, sizeof(class_t));
+    class->magic = read_bytes_u4(class_bytes);
+    class->minor_version = read_bytes_u2(class_bytes);
+    class->major_version = read_bytes_u2(class_bytes);
+    class->constant_pool_count = read_bytes_u2(class_bytes);
+    class->cp_pools = read_constant_pool_bytes(class_bytes, class->constant_pool_count);
+    class->access_flags = read_bytes_u2(class_bytes);
+    class->this_class = read_bytes_u2(class_bytes);
+    class->super_class = read_bytes_u2(class_bytes);
+    class->interface_count = read_bytes_u2(class_bytes);
+    if(class->interface_count > 0) {
+        class->interfaces = calloc(class->interface_count, sizeof(u2));
+        for(u2 i=0;i<class->interface_count;i++) {
+            class->interfaces[i] = read_bytes_u2(class_bytes);
+        }
+    }
+    class->fields_count = read_bytes_u2(class_bytes);
+    class->fields = read_fields_bytes(class_bytes, class->fields_count, class->cp_pools);
+    class->methods_count = read_bytes_u2(class_bytes);
+    class->methods = read_methods_bytes(class_bytes, class->methods_count, class->cp_pools);
+    class->attributes_count = read_bytes_u2(class_bytes);
+    class->attributes = read_attributes_bytes(class_bytes, class->attributes_count, class->cp_pools);
+
+    // 判断是否是读取到最后了
+    if (class_bytes->offset != class_bytes->size) {
+        printf("class file bytes is not end\n");
+        return NULL;
+    }
+
+    fill_class_info(class);
+
+    return class;
+}
+
+class_bytes_t *class_bytes_new(u1 *bytes, size_t len) {
+    char *memory = malloc(sizeof(class_bytes_t) + sizeof(u1) * len);
+    class_bytes_t *class_bytes = (class_bytes_t *)memory;
+    class_bytes->bytes = (u1*)(memory + sizeof(class_bytes_t));
+    class_bytes->offset = 0;
+    return class_bytes;
 }
 
 

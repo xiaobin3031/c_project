@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
+#include "../utils/jtype.h"
 #include <stdio.h>
 
 typedef enum {
@@ -69,5 +70,7 @@ int is_cp_info_tag(u1 tag, u1 special_tag);
 void check_cp_info_tag(u1 tag, u1 special_tag);
 
 cp_info_t *read_constant_pool(FILE *file, u2 pool_size);
+
+cp_info_t *read_constant_pool_bytes(class_bytes_t *class_bytes, u2 pool_size);
 
 char *get_utf8(cp_info_t *cp_info);

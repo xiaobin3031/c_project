@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
+#include "../utils/jtype.h"
 #include "attr.h"
 #include <stdio.h>
 
@@ -33,6 +34,8 @@ typedef struct {
 int method_is_flag(u2 access_flag, method_acc_flags flag);
 
 method_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools);
+
+method_t *read_methods_bytes(class_bytes_t *class_bytes, u2 method_count, cp_info_t *cp_pools) ;
 
 
 

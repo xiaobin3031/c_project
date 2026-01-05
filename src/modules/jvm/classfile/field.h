@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
+#include "../utils/jtype.h"
 #include "attr.h"
 
 enum field_acc_flags {
@@ -31,5 +32,6 @@ typedef struct {
 
 field_t *read_fields(FILE *file, u2 field_count, cp_info_t *cp_pools);
 
+field_t *read_fields_bytes(class_bytes_t *class_bytes, u2 field_count, cp_info_t *cp_pools);
 
 void field_free(field_t *fields, u2 field_count);

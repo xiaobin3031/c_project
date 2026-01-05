@@ -4,12 +4,16 @@
 
 typedef struct {
     char *root_path;
+    // jdk目录
+    char *jdk_root;
     arraylist *class_file_path;
 } project_t;
 
 int is_class_file(const char *name);
 
 project_t *load_project(const char *root_path);
+
+void jdk_load(project_t *project, const char *jdk_root);
 
 
 void project_free(project_t *project);

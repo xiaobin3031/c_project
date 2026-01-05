@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
+#include "../utils/jtype.h"
 #include "constant_pool.h"
 #include <stdio.h>
 
@@ -76,6 +77,8 @@ typedef struct {
 int is_attr_tag(u1 tag, u1 special_tag);
 
 attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools);
+
+attribute_t *read_attributes_bytes(class_bytes_t *class_bytes, u2 attr_count, cp_info_t *cp_pools);
 
 
 

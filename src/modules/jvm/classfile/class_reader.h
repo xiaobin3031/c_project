@@ -5,6 +5,7 @@
 #include "../../../core/list/arraylist.h"
 #include "method_info.h"
 #include "field.h"
+#include "../utils/jtype.h"
 #include <pthread.h>
 
 typedef struct class_t class_t;
@@ -64,7 +65,17 @@ struct class_t {
 
 };
 
+typedef struct {
+    u1 *bytes;
+    size_t offset;
+    size_t size;
+} class_bytes_t;
+
 class_t *read_class_file(const char *path);
+
+class_t *read_by_class_bytes(class_bytes_t *class_bytes);
+
+class_bytes_t *class_bytes_new(u1 *bytes, size_t len);
 
 void class_free(class_t *class);
 
