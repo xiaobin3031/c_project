@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 static void fill_class_info(class_t *class) {
     cp_info_t cp_info = class->cp_pools[class->this_class];
@@ -40,6 +41,7 @@ static void fill_class_info(class_t *class) {
     class->state = CLASS_LOADED;
     class->super = NULL;
     class->interface_class = NULL;
+    pthread_mutex_init(&class->lock, NULL);
 }
 
 class_t *read_class_file(const char *path) {

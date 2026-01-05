@@ -50,7 +50,7 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 u2 high = read_u1(file);
                 u2 low = read_u1(file);
                 u2 length = (high << 8) | low;
-                u1 *utf8_bytes = malloc(2 + length + 1);
+                u1 *utf8_bytes = malloc(sizeof(u1) * (2 + length + 1));
                 if(length > 0) {
                     u1 *bytes = read_bytes(file, length);
                     memcpy(utf8_bytes + 2, bytes, length);
@@ -145,7 +145,7 @@ cp_info_t *read_constant_pool_bytes(class_bytes_t *class_bytes, u2 pool_len) {
                 u2 high = read_bytes_u1(class_bytes);
                 u2 low = read_bytes_u1(class_bytes);
                 u2 length = (high << 8) | low;
-                u1 *utf8_bytes = malloc(2 + length + 1);
+                u1 *utf8_bytes = malloc(sizeof(u1) * (2 + length + 1));
                 if(length > 0) {
                     u1 *tmp = read_bytes_bytes(class_bytes, length);
                     memcpy(utf8_bytes + 2, tmp, length);

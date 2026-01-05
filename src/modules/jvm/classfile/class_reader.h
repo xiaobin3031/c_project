@@ -61,7 +61,7 @@ struct class_t {
 
     class_t *super;
 
-    class_t *interface_class;
+    class_t **interface_class;
 
 };
 

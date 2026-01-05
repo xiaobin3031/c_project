@@ -106,13 +106,13 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
     } else {
         cp_nameandtype_t *nametype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
         char *run_method_name = get_utf8(&cp_pools[nametype->name_index]);
-        if (strcmp(run_method_name, "<init>") == 0) {
-            // 如果类名是 java/lang/Object，则不递归
-            if(strcmp(target_class_name, "java/lang/Object") == 0
-                || strcmp(target_class_name, "java/lang/RuntimeException") == 0) {
-                return 0;
-            }
-        }
+        // if (strcmp(run_method_name, "<init>") == 0) {
+        //     // 如果类名是 java/lang/Object，则不递归
+        //     if(strcmp(target_class_name, "java/lang/Object") == 0
+        //         || strcmp(target_class_name, "java/lang/RuntimeException") == 0) {
+        //         return 0;
+        //     }
+        // }
         char *run_method_descriptor = get_utf8(&cp_pools[nametype->descriptor_index]);
         for(int i=0;i<target_class->methods_count;i++) {
             method_t *method = &target_class->methods[i];
@@ -128,12 +128,14 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
         }
     }
 
-    frame_t *run_frame = frame_new(call_method, cur_frame, class);
+    frame_t *run_frame = frame_new(call_method, cur_frame, target_class);
     if(call_method->access_flags & METHOD_ACC_NATIVE) {
+        printf("native method: %s %s\n", call_method->name, call_method->descriptor);
         native_fn fn = find_native_method(target_class_name, call_method->name, call_method->descriptor);
         if(fn != NULL) fn(run_frame);
         return 0;
     }else{
+        printf("run method: %s %s\n", call_method->name, call_method->descriptor);
         push_frame(thread, run_frame);
         return 1;
     }
@@ -157,8 +159,8 @@ static int is_class_assignable(class_t *from, class_t *to) {
     }else if(to->access_flags && CLASS_ACC_INTERFACE) {
         // from实现了to接口
         for(int i=0;i<from->interface_count;i++) {
-            class_t interface = from->interface_class[i];
-            if(&interface == to) return 1;
+            class_t *interface = from->interface_class[i];
+            if(interface == to) return 1;
         }
     }
 
@@ -354,13 +356,19 @@ void exec_instruction(jvm_thread_t *thread) {
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_String)) {
                     cp_info_t cp_string = cp_pools[index];
                     char *string = get_utf8(&cp_pools[parse_to_u2(cp_string.info)]);
-                    object_t *ref = malloc(sizeof(object_t));
-                    ref->class = load_class("java/lang/String", thread);
-                    ref->strings = string;
-                    push(frame)->ref = ref;
+                    slot_t *slot = push(frame);
+                    if(slot->ref == NULL) {
+                        slot->ref = calloc(1, sizeof(object_t));
+                    }
+                    slot->ref->class = load_class("java/lang/String", thread);
+                    slot->ref->strings = string;
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_Class)) {
-                    fprintf(stderr, "ldc class not implemented\n");
-                    abort();
+                    cp_class_t *cp_class = (cp_class_t *)cp_info.info;
+                    slot_t *slot = push(frame);
+                    if(slot->ref == NULL) {
+                        slot->ref = calloc(1, sizeof(object_t));
+                    }
+                    slot->ref->class = load_class(get_utf8(&cp_pools[cp_class->name_index]), thread);
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_MethodType)) {
                     fprintf(stderr, "ldc method type not implemented\n");
                     abort();

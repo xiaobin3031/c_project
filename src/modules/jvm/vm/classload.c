@@ -94,19 +94,18 @@ class_t *load_class(const char *class_file, jvm_thread_t *thread) {
                 abort();
             }
             class->state = CLASS_LOADED;
-            link_class(thread, class);
-
-            return class;
         }
-
+    }
+    if(class == NULL){
         fprintf(stderr, "ClassFormatError: %s\n", class_file);
         abort();
     }
-    
     if(class->state == CLASS_ERRONEOUS) {
         thread->error = error_new(RUNTIME_ERROR_NoClassDefFoundError, "Class is in erroneous state");
+    }else{
+        link_class(thread, class);
     }
-
+    
     return class;
 
 }
@@ -122,26 +121,12 @@ void link_class(jvm_thread_t *thread, class_t *class) {
     printf("link class %s\n", class->class_name);
     // todo verify
     // todo 接口也能继承了，文档读的有问题，后续再补
-    // if(class->access_flags & CLASS_ACC_INTERFACE) {
-    //     // super class必须是object
-    //     if(class->super_class <= 0) {
-    //         fprintf(stderr, "Interface %s's super class must be java/lang/Object\n", class->class_name);
-    //         abort();
-    //     }
-    //     char *super_name = get_utf8(&class->cp_pools[class->super_class]);
-    //     if(strcmp(super_name, "java/lang/Object") != 0) {
-    //         fprintf(stderr, "Interface %s's super class must be java/lang/Object\n", class->class_name);
-    //         abort();
-    //     }
-    // }
 
     // create static fields
-    cp_info_t *cp_pools = class->cp_pools;
-    for(u2 i=1;i<class->constant_pool_count;i++) {
-        cp_info_t *cp_info = &cp_pools[i];
-        if(cp_info->tag == CONSTANT_Fieldref) {
-            field_t *field = find_field(class, cp_info);
-            if(field != NULL && field->access_flags & FIELD_ACC_STATIC) {
+    if(class->fields_count > 0) {
+        for(u2 i=0;i<class->fields_count;i++) {
+            field_t *field = &class->fields[i];
+            if(field->access_flags & FIELD_ACC_STATIC) {
                 // 初始化静态字段
                 if(*field->descriptor == 'J' || *field->descriptor == 'D') {
                     if(field->slot_count != 2) {
@@ -154,6 +139,7 @@ void link_class(jvm_thread_t *thread, class_t *class) {
                         abort();
                     }
                 }
+
                 slot_t *slot = malloc(sizeof(slot_t) * field->slot_count);
                 // todo 初始化slot
                 switch(*field->descriptor) {
@@ -173,6 +159,7 @@ void link_class(jvm_thread_t *thread, class_t *class) {
                 // 设置到cp_fieldref中
                 field->init_value = slot;
             }
+
         }
     }
 
@@ -215,13 +202,12 @@ void ensure_class_initialized(class_t *class, jvm_thread_t *thread) {
     }
     if(class->interface_count > 0) {
         printf("interface count: %d\n", class->interface_count);
-        class->interface_class = calloc(class->interface_count, sizeof(class_t));
+        class->interface_class = calloc(class->interface_count, sizeof(class_t*));
         for(u2 i=0;i<class->interface_count;i++) {
             u2 interface_index = class->interfaces[i];
             char *interface_name = resolve_class_name(class, interface_index);
             class_t *interface_class = load_class(interface_name, thread);
-            ensure_class_initialized(interface_class, thread);
-            class->interface_class[i] = *interface_class;
+            class->interface_class[i] = interface_class;
         }
     }
 
@@ -319,16 +305,6 @@ void bootstrap(project_t *project) {
             printf("match jdk class: %s\n", st.m_filename);
         }
 
-        // int is_white = 0;
-        // for(int i=0;white_classes[i] != NULL;i++) {
-        //     if(strcmp(st.m_filename, white_classes[i]) == 0) {
-        //         is_white = 1;
-        //         break;
-        //     }
-        // }
-        // if(is_white == 0) continue;
-
-        // printf("load jdk class: %s\n", st.m_filename);
         char *filename = strdup(st.m_filename);
         size_t size;
         void* data = mz_zip_reader_extract_to_heap(&zip, i, &size, 0);
