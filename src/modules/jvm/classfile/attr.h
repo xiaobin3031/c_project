@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
-#include "../utils/jtype.h"
+#include "class_bytes.h"
 #include "constant_pool.h"
 #include <stdio.h>
 

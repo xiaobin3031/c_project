@@ -3,6 +3,7 @@
 #include "../classfile/class_reader.h"
 #include "../../../core/utils.h"
 #include "../utils/miniz.h"
+#include "../classfile/class_bytes.h"
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
@@ -88,6 +89,7 @@ void jdk_load(project_t *project, const char *jdk_root) {
         size_t size;
         void* data = mz_zip_reader_extract_to_heap(&zip, i, &size, 0);
         class_bytes_t *class_bytes = class_bytes_new((u1*)data, size);
+        class_t *class = read_by_class_bytes(class_bytes);
     }
 }
 

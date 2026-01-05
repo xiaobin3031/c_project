@@ -5,7 +5,7 @@
 #include "field.h"
 #include "method_info.h"
 #include "attr.h"
-#include "../utils/jtype.h"
+#include "class_bytes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -127,14 +127,6 @@ class_t *read_by_class_bytes(class_bytes_t *class_bytes) {
     fill_class_info(class);
 
     return class;
-}
-
-class_bytes_t *class_bytes_new(u1 *bytes, size_t len) {
-    char *memory = malloc(sizeof(class_bytes_t) + sizeof(u1) * len);
-    class_bytes_t *class_bytes = (class_bytes_t *)memory;
-    class_bytes->bytes = (u1*)(memory + sizeof(class_bytes_t));
-    class_bytes->offset = 0;
-    return class_bytes;
 }
 
 

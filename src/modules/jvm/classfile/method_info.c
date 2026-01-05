@@ -2,7 +2,7 @@
 #include "class_reader.h"
 #include "../utils/slots.h"
 #include "../utils/bytes.h"
-#include "../utils/jtype.h"
+#include "class_bytes.h"
 #include "attr.h"
 #include <stdlib.h>
 

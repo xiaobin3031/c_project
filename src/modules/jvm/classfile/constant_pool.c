@@ -1,6 +1,6 @@
 #include "../utils/bytes.h"
 #include "constant_pool.h"
-#include "../utils/jtype.h"
+#include "class_bytes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -211,7 +211,7 @@ cp_info_t *read_constant_pool_bytes(class_bytes_t *class_bytes, u2 pool_len) {
             case CONSTANT_MethodType:
             case CONSTANT_String:
              {
-                info.info = read_bytes_u2(class_bytes);
+                info.info = read_bytes_bytes(class_bytes, 2);
                 break;
             }
             // todo 后续扩展更多tag

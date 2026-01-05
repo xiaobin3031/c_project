@@ -1,6 +1,6 @@
 #include "field.h"
 #include "../utils/bytes.h"
-#include "../utils/jtype.h"
+#include "class_bytes.h"
 #include "attr.h"
 #include "../utils/slots.h"
 #include <stdlib.h>

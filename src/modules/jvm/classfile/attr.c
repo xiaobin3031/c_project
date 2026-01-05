@@ -1,7 +1,7 @@
 #include "attr.h"
 #include "constant_pool.h"
 #include "../utils/bytes.h"
-#include "../utils/jtype.h"
+#include "class_bytes.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
