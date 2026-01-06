@@ -39,7 +39,7 @@ frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
     if(method->access_flags & METHOD_ACC_NATIVE) {
         // native 方法，直接指定参数
         max_locals = method->arg_slot_count;
-        max_stacks = 0;
+        max_stacks = method->stack_slot_count;
     } else {
         // 非native方法，从code attr中获取执行的代码
         for(u2 i = 0; i < method->attributes_count; i++) {

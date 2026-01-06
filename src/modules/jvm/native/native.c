@@ -1,6 +1,7 @@
 #include "native.h"
 #include "../../../core/list/arraylist.h"
 #include "../runtime/operand_stack.h"
+#include "../runtime/local_vars.h"
 #include <string.h>
 
 
@@ -47,8 +48,8 @@ native_fn find_native_method(
 }
 
 void java_lang_object_getClass(jvm_thread_t *thread, frame_t *frame) {
-    object_t *obj = frame->current_class->java_mirror;
-    push(frame)->ref = obj;
+    slot_t *slot = get_local(frame, 0);
+    push(frame)->ref = slot->ref;
 }
 
 void java_lang_system_registerNatives(jvm_thread_t *thread, frame_t *frame) {

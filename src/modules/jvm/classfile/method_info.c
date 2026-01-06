@@ -28,6 +28,13 @@ method_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools) {
             // todo 暂时不解析类型，还没想好后续怎么使用
         }
 
+        if(method.access_flags & METHOD_ACC_NATIVE) {
+            char *ptr = method.descriptor;
+            while(*ptr != ')') ptr++;
+            ptr++;
+            method.stack_slot_count = slot_count_from_desciptor(ptr);
+        }
+
         method.arg_slot_count = arg_count;
 
         methods[i] = method;
@@ -51,6 +58,14 @@ method_t *read_methods_bytes(class_bytes_t *class_bytes, u2 method_count, cp_inf
         u2 arg_count = slot_count_from_desciptor(method.descriptor);
         if(arg_count > 0) {
             // todo 暂时不解析类型，还没想好后续怎么使用
+        }
+        char *ptr = method.descriptor;
+        while(*ptr != ')') ptr++;
+        ptr++;
+        method.return_slot_count = slot_count_from_desciptor(ptr);
+
+        if(method.access_flags & METHOD_ACC_NATIVE) {
+            method.stack_slot_count = method.return_slot_count;
         }
 
         method.arg_slot_count = arg_count;

@@ -136,8 +136,18 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
         printf("native method: %s %s %s\n", 
             target_class->class_name, call_method->name, call_method->descriptor);
         native_fn fn = find_native_method(target_class_name, call_method->name, call_method->descriptor);
-        if(fn != NULL) fn(thread, run_frame);
-        return 1;
+        if(fn != NULL) {
+            push_frame(thread, run_frame);
+            fn(thread, run_frame);
+            char *descriptor = call_method->descriptor;
+            if(call_method->return_slot_count > 0) {
+                // 有返回值
+                slot_t *ret = pop(run_frame);
+                push(cur_frame)->ref = ret->ref;
+            }
+            pop_frame(thread);
+        }
+        return 0;
     }else{
         printf("run method: %s %s\n", call_method->name, call_method->descriptor);
         push_frame(thread, run_frame);

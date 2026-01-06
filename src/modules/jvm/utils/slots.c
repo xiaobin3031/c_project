@@ -31,8 +31,8 @@ u2 slot_count_from_desciptor(char *descriptor) {
             arg_count+=2;
             ptr++;
         }else{
+            if(*ptr != 'V') arg_count++;
             ptr++;
-            arg_count++;
         }
     }
     return arg_count;
