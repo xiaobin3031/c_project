@@ -43,7 +43,7 @@ native_fn find_native_method(
         }
     }
     // todo 找不到native方法
-    fprintf(stderr, "native method not found: %s.%s%s\n", class_name, method_name, descriptor);
+    fprintf(stderr, "native method not found: %s %s %s\n", class_name, method_name, descriptor);
     abort();
 }
 
@@ -55,10 +55,15 @@ void java_lang_object_getClass(jvm_thread_t *thread, frame_t *frame) {
 void java_lang_system_registerNatives(jvm_thread_t *thread, frame_t *frame) {
     // todo
 }
+void java_lang_class_registerNatives(jvm_thread_t *thread, frame_t *frame) {
+    // todo
+}
 
 void register_native_methods() { 
     // java/lang/Object
     register_native("java/lang/Object", "getClass", "()Ljava/lang/Class;", java_lang_object_getClass);
+
+    register_native("java/lang/Class", "registerNatives", "()V", java_lang_class_registerNatives);
 
     // java/lang/System
     register_native("java/lang/System", "registerNatives", "()V", java_lang_system_registerNatives);

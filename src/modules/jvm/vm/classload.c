@@ -316,13 +316,14 @@ void bootstrap(project_t *project) {
         char *filename = strdup(st.m_filename);
         size_t size;
         void* data = mz_zip_reader_extract_to_heap(&zip, i, &size, 0);
+        printf("load class file: %s, size: %ld\n", filename, size);
         class_bytes_t *class_bytes = class_bytes_new((u1*)data, size);
         class_t *class = read_by_class_bytes(class_bytes);
         // printf("loaded class file: %s\n", class->class_name);
         arraylist_add(g_class_list, class);
         free(filename);
-        free(data);
         free(class_bytes);
+        free(data);
     }
 
     if(g_class_list->size > 0) {

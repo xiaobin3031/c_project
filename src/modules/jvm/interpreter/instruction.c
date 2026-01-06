@@ -1259,6 +1259,10 @@ void exec_instruction(jvm_thread_t *thread) {
                 }
 
                 object_t *ref = pop(frame)->ref;
+                if(ref == NULL) {
+                    throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
+                    return;
+                }
                 for(int i = target_field->slot_offset_in_class + target_field->slot_count - 1;
                     i >= target_field->slot_offset_in_class; i--) {
                     slot_t field_slot = ref->fields[i];
