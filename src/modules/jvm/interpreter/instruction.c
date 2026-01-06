@@ -1407,6 +1407,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
                 class_t *local_class = load_class(get_utf8(&cp_pools[cp_class->name_index]), thread);
                 slot_t *slot = push(frame);
+                if(slot->ref == NULL) {
+                    slot->ref = calloc(1, sizeof(object_t));
+                }
                 slot->ref->acount = count;
                 slot->ref->class = local_class;
                 slot->ref->fields = calloc(1, count * sizeof(slot_t));
@@ -1472,8 +1475,10 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_monitorenter: {   // 0xc2,       // 194
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                // todo 暂时不覆盖
+                pop(frame);
+                frame->pc++;
+                break;
             }
             case OPCODE_monitorexit: {   // 0xc3,       // 195
             fprintf(stderr, "unimpleted opcode: %d\n", opcode);
@@ -1561,8 +1566,16 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_ifnonnull: {   // 0xc7,      // 199 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                object_t *ref = pop(frame)->ref;
+                if(ref == NULL) {
+                    frame->pc += 3;
+                }else{
+                    u1 high = codes[frame->pc+1];
+                    u1 low = codes[frame->pc+2];
+                    int16_t index = (int16_t)((high << 8) | low);
+                    frame->pc += index;
+                }
+                break;
             }
             case OPCODE_goto_w: {   // 0xc8,      // 200 
             fprintf(stderr, "unimpleted opcode: %d\n", opcode);

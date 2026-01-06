@@ -66,8 +66,8 @@ int junit_test_class_init() {
 int junit_test_class_clinit() {
 
     project_t *project = load_project("../data/jvm");
-    project->jdk_root = "/mnt/c/Program Files/Java/jdk-17";
-    // project->jdk_root = "/Users/lixiaolin/Documents/jdk-17.0.2.jdk/Contents/Home";
+    // project->jdk_root = "/mnt/c/Program Files/Java/jdk-17";
+    project->jdk_root = "/Users/lixiaolin/Documents/jdk-17.0.2.jdk/Contents/Home";
 
     run("ClinitTest", project);
     return SUCCESS;
