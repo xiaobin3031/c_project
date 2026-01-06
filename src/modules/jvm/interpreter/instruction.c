@@ -142,6 +142,7 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
             char *descriptor = call_method->descriptor;
             if(call_method->return_slot_count > 0) {
                 // 有返回值
+                // todo 根据返回值个数，复制到当前栈， long double占2个
                 slot_t *ret = pop(run_frame);
                 push(cur_frame)->ref = ret->ref;
             }
