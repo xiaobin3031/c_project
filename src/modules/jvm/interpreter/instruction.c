@@ -19,6 +19,9 @@
 #include <execinfo.h>
 #include <stdarg.h>
 
+static class_t *to_class(object_t *obj) {
+    return (class_t *)obj->class;
+}
 static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char *message, ...) {
     va_list args;
 
@@ -130,10 +133,11 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
 
     frame_t *run_frame = frame_new(call_method, cur_frame, target_class);
     if(call_method->access_flags & METHOD_ACC_NATIVE) {
-        printf("native method: %s %s\n", call_method->name, call_method->descriptor);
+        printf("native method: %s %s %s\n", 
+            target_class->class_name, call_method->name, call_method->descriptor);
         native_fn fn = find_native_method(target_class_name, call_method->name, call_method->descriptor);
-        if(fn != NULL) fn(run_frame);
-        return 0;
+        if(fn != NULL) fn(thread, run_frame);
+        return 1;
     }else{
         printf("run method: %s %s\n", call_method->name, call_method->descriptor);
         push_frame(thread, run_frame);
@@ -177,9 +181,9 @@ static int is_assignable(object_t *from, object_t *to) {
                 return from->atype == to->atype ? 1 : 0;
             }
         }else {
-            return (strcmp(to->class->class_name, "java/lang/Object") == 0
-                || strcmp(to->class->class_name, "java/lang/Cloneable") == 0
-                || strcmp(to->class->class_name, "java/io/Serializable") == 0) ? 1 : 0;
+            return (strcmp(to_class(to)->class_name, "java/lang/Object") == 0
+                || strcmp(to_class(to)->class_name, "java/lang/Cloneable") == 0
+                || strcmp(to_class(to)->class_name, "java/io/Serializable") == 0) ? 1 : 0;
         }
     }
     return is_class_assignable(from->class, to->class);
@@ -1160,10 +1164,30 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_if_acmpeq: {   // 0xa5,       // 165 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                u1 high = codes[frame->pc+1];
+                u1 low = codes[frame->pc+2];
+                int16_t index = (int16_t)((high << 8) | low);
+                object_t *obj2 = pop(frame)->ref;
+                object_t *obj1 = pop(frame)->ref;
+                if(obj1 == obj2) {
+                    frame->pc += index;
+                }else{
+                    frame->pc += 3;
+                }
+                break;
             }
             case OPCODE_if_acmpne: {   // 0xa6,       // 166 
+                u1 high = codes[frame->pc+1];
+                u1 low = codes[frame->pc+2];
+                int16_t index = (int16_t)((high << 8) | low);
+                object_t *obj2 = pop(frame)->ref;
+                object_t *obj1 = pop(frame)->ref;
+                if(obj1 != obj2) {
+                    frame->pc += index;
+                }else{
+                    frame->pc += 3;
+                }
+                break;
             fprintf(stderr, "unimpleted opcode: %d\n", opcode);
                             abort();
             }

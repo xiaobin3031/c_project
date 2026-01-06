@@ -6,6 +6,7 @@
 #include "method_info.h"
 #include "field.h"
 #include "class_bytes.h"
+#include "../utils/jtype.h"
 #include <pthread.h>
 
 typedef struct class_t class_t;
@@ -62,6 +63,8 @@ struct class_t {
     class_t *super;
 
     class_t **interface_class;
+
+    object_t *java_mirror;
 
 };
 

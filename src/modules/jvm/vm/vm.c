@@ -4,9 +4,12 @@
 #include "../interpreter/interpreter.h"
 #include "../project/project.h"
 #include "classload.h"
+#include "../native/native.h"
 #include <stdio.h>
 
 void run(const char *main_class_file, project_t *project) {
+
+    register_native_methods();
 
     bootstrap(project);
 

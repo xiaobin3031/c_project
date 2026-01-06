@@ -7,7 +7,6 @@
 #include "../project/project.h"
 #include "../../../core/list/arraylist.h"
 #include "../../../core/utils.h"
-#include "../native/system.h"
 #include "../utils/miniz.h"
 #include <stdio.h>
 #include <string.h>
@@ -161,6 +160,15 @@ void link_class(jvm_thread_t *thread, class_t *class) {
             }
 
         }
+    }
+
+    if(strcmp("java/lang/Class", class->class_name) != 0) {
+        // 创建一个java_mirror
+        class_t *java_lang_class = load_class("java/lang/Class", thread);
+        // ensure_class_initialized(java_lang_class, thread);
+        object_t *java_mirror = calloc(1, sizeof(object_t));
+        java_mirror->class = java_lang_class;
+        class->java_mirror = java_mirror;
     }
 
     class->state = CLASS_LINKED;

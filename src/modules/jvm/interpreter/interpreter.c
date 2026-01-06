@@ -43,6 +43,11 @@ void handle_exception(jvm_thread_t *thread) {
 
 void interpret(jvm_thread_t *thread) {
     while(thread->current_frame != NULL) {
+        printf("interpret class: %s %s %s\n", 
+            thread->current_frame->current_class->class_name,
+            thread->current_frame->method->name,
+            thread->current_frame->method->descriptor
+        );
 
         exec_instruction(thread);
 

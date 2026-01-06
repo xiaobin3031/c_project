@@ -1,7 +1,7 @@
 #pragma once
 #include "../runtime/frame.h"
 
-typedef void (*native_fn)(frame_t*);
+typedef void (*native_fn)(jvm_thread_t *thread, frame_t*);
 
 
 typedef struct {
@@ -23,3 +23,5 @@ native_fn find_native_method(
     const char *method_name,
     const char *descriptor
 );
+
+void register_native_methods();

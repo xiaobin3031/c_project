@@ -1,5 +1,6 @@
 #include "native.h"
 #include "../../../core/list/arraylist.h"
+#include "../runtime/operand_stack.h"
 #include <string.h>
 
 
@@ -43,4 +44,21 @@ native_fn find_native_method(
     // todo 找不到native方法
     fprintf(stderr, "native method not found: %s.%s%s\n", class_name, method_name, descriptor);
     abort();
+}
+
+void java_lang_object_getClass(jvm_thread_t *thread, frame_t *frame) {
+    object_t *obj = frame->current_class->java_mirror;
+    push(frame)->ref = obj;
+}
+
+void java_lang_system_registerNatives(jvm_thread_t *thread, frame_t *frame) {
+    // todo
+}
+
+void register_native_methods() { 
+    // java/lang/Object
+    register_native("java/lang/Object", "getClass", "()Ljava/lang/Class;", java_lang_object_getClass);
+
+    // java/lang/System
+    register_native("java/lang/System", "registerNatives", "()V", java_lang_system_registerNatives);
 }

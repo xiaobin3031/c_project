@@ -93,6 +93,7 @@ frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
         }
     }
     frame->current_class = current_class;
+    frame->method = method;
     return frame;
 }
 

@@ -3,6 +3,7 @@
 #include "../utils/bytes.h"
 #include "../utils/jtype.h"
 #include "../classfile/method_info.h"
+#include "../classfile/class_reader.h"
 #include "../classfile/attr.h"
 #include "run_error.h"
 
@@ -29,6 +30,8 @@ struct frame_t {
     class_t *current_class;
     frame_t *invoker;
     jvm_thread_t *thread;
+
+    method_t *method;
 };
 
 struct jvm_thread_t {

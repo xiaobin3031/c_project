@@ -1,7 +1,6 @@
 #pragma once
 
 #include "bytes.h"
-#include "../classfile/class_reader.h"
 
 typedef struct slot_t slot_t;
 
@@ -18,7 +17,7 @@ enum atype {
 };
 
 typedef struct {
-    class_t *class;
+    void *class;
     slot_t *fields;
 
     u1 atype;
