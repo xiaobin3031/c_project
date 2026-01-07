@@ -22,17 +22,10 @@ typedef enum {
 
 typedef struct {
     u2 access_flags;
-    char *name;
-    char *descriptor;
+    u2 name_index;
+    u2 descriptor_index;
     u2 attributes_count;
     attribute_file_t *attributes;
-
-    // 方法入参个数，这两个参数从descriptor中解析,  long/double占两个slot
-    u2 arg_slot_count;
-    // 给native方法使用
-    u2 stack_slot_count;
-    // 返回值个数
-    u2 return_slot_count;
 } method_file_t;
 
 int method_is_flag(u2 access_flag, method_acc_flags flag);

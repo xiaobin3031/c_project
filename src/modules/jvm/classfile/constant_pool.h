@@ -37,7 +37,7 @@ typedef struct {
 
 typedef struct {
     u2 name_index;
-} cp_class_file_t;
+} cp_class_t;
 
 typedef struct {
     u2 name_index;
@@ -47,14 +47,16 @@ typedef struct {
 typedef struct {
     u2 class_index;
     u2 name_and_type_index;
-    void *resolved_field;
 } cp_fieldref_t;
 
 typedef struct {
     u2 class_index;
     u2 name_and_type_index;
-    void *resolved_method;
 } cp_methodref_t;
+
+typedef struct {
+    u2 string_index;
+} cp_string_t;
 
 typedef struct {
     u1 tag;
@@ -62,7 +64,7 @@ typedef struct {
 } cp_info_t;
 
 cp_methodref_t *get_cp_methodref(cp_info_t *cp_info);
-cp_class_file_t *get_cp_class(cp_info_t *cp_info);
+cp_class_t *get_cp_class(cp_info_t *cp_info);
 cp_fieldref_t *get_cp_fieldref(cp_info_t *cp_info);
 cp_nameandtype_t *get_cp_nameandtype(cp_info_t *cp_info);
 

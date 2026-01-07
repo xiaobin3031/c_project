@@ -1,10 +1,7 @@
 #pragma once
 
 #include "../utils/bytes.h"
-#include "../utils/jtype.h"
-#include "../classfile/method_info.h"
-#include "../classfile/class_reader.h"
-#include "../classfile/attr.h"
+#include "class.h"
 #include "run_error.h"
 
 #include <stdint.h>
@@ -25,13 +22,11 @@ struct frame_t {
     int16_t sp;
     u4 pc;
 
-    attr_file_code_t *attr_code;
-
-    class_file_t *current_class;
+    class_t *current_class;
     frame_t *invoker;
     jvm_thread_t *thread;
 
-    method_file_t *method;
+    method_t *method;
 };
 
 struct jvm_thread_t {
@@ -46,7 +41,7 @@ void pop_frame(jvm_thread_t *thread);
 
 void push_frame(jvm_thread_t *thread, frame_t *frame);
 
-frame_t *frame_new(method_file_t *method, frame_t *invoker, class_file_t *current_class);
+frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class);
 
 jvm_thread_t *jvm_thread_new();
 

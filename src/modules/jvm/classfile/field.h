@@ -18,15 +18,10 @@ enum field_acc_flags {
 
 typedef struct {
     u2 access_flags;
-    char *name;
-    char *descriptor;
+    u2 name_index;
+    u2 descriptor_index;
     u2 attributes_count;
     attribute_file_t *attributes;
-
-    u2 slot_offset_in_class;
-    // long or double占两个slot
-    u2 slot_count;
-    void *init_value;
 } field_file_t;
 
 

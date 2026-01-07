@@ -1,6 +1,5 @@
 #include "operand_stack.h"
 #include "frame.h"
-#include "../utils/jtype.h"
 #include <ctype.h>
 #include <string.h>
 

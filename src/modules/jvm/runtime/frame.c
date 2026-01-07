@@ -1,8 +1,7 @@
 #include "frame.h"
-#include "../classfile/attr.h"
-#include "../utils/jtype.h"
 #include "operand_stack.h"
 #include "local_vars.h"
+#include "class.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,30 +29,23 @@ void push_frame(jvm_thread_t *thread, frame_t *frame) {
     thread->current_frame = frame;
 }
 
-frame_t *frame_new(method_file_t *method, frame_t *invoker, class_file_t *current_class) {
+frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
     int is_static = method->access_flags & METHOD_ACC_STATIC;
-    attr_file_code_t *code_attr = NULL;
     frame_t *frame = NULL;
     u2 max_locals = 0, max_stacks = 0;
 
     if(method->access_flags & METHOD_ACC_NATIVE) {
         // native 方法，直接指定参数
         max_locals = method->arg_slot_count;
-        max_stacks = method->stack_slot_count;
+        max_stacks = method->return_slot_count;
     } else {
         // 非native方法，从code attr中获取执行的代码
-        for(u2 i = 0; i < method->attributes_count; i++) {
-            if(method->attributes[i].tag == ATTR_CODE) {
-                code_attr = (attr_file_code_t *)method->attributes[i].info;
-                break;
-            }
-        }
-        if(code_attr == NULL) {
+        if(method->code == NULL) {
             fprintf(stderr, "method has no code attribute\n");
             abort();
         }
-        max_locals = code_attr->max_locals;
-        max_stacks = code_attr->max_stack;
+        max_locals = method->code->max_locals;
+        max_stacks = method->code->max_stack;
     }
     // 需要存一个this，jvm规定
     if(!is_static) max_locals++;
@@ -66,8 +58,6 @@ frame_t *frame_new(method_file_t *method, frame_t *invoker, class_file_t *curren
     }
 
     frame = (frame_t *)frame_memory;
-
-    frame->attr_code = code_attr;
 
     frame->local_var_size = max_locals;
     frame->operand_stack_size = max_stacks;
@@ -118,9 +108,9 @@ void dump_frame(frame_t *frame) {
     printf("[DUMP] frame: \n");
     printf("[DUMP] local vars: %d\n", frame->local_var_size);
     printf("[DUMP] sp: %d / %d\n", frame->sp, frame->operand_stack_size);
-    if(frame->attr_code) {
-        printf("[DUMP] opcode: %d\n", frame->attr_code->code[frame->pc]);
-        printf("[DUMP] pc: %d / %d\n", frame->pc, frame->attr_code->code_length);
+    if(frame->method->code != NULL) {
+        printf("[DUMP] opcode: %d\n", frame->method->code->codes[frame->pc]);
+        printf("[DUMP] pc: %d / %d\n", frame->pc, frame->method->code->code_length);
     }
 }
 

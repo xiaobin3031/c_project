@@ -11,9 +11,9 @@ cp_methodref_t *get_cp_methodref(cp_info_t *cp_info) {
     return (cp_methodref_t *)cp_info->info;
 }
 
-cp_class_file_t *get_cp_class(cp_info_t *cp_info) {
+cp_class_t *get_cp_class(cp_info_t *cp_info) {
     check_cp_info_tag(cp_info->tag, CONSTANT_Class);
-    return (cp_class_file_t *)cp_info->info;
+    return (cp_class_t *)cp_info->info;
 }
 
 cp_fieldref_t *get_cp_fieldref(cp_info_t *cp_info) {
@@ -70,7 +70,6 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 cp_methodref_t *methodref = malloc(sizeof(cp_methodref_t));
                 methodref->class_index = read_u2(file);
                 methodref->name_and_type_index = read_u2(file);
-                methodref->resolved_method = NULL;
                 info.info = (u1*) methodref;
                 break;
             }
@@ -78,7 +77,6 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 cp_fieldref_t *fieldref = malloc(sizeof(cp_fieldref_t));
                 fieldref->class_index = read_u2(file);
                 fieldref->name_and_type_index = read_u2(file);
-                fieldref->resolved_field = NULL;
                 info.info = (u1*) fieldref;
                 break;
             }
@@ -108,15 +106,19 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 break;
             }
             case CONSTANT_Class: {
-                cp_class_file_t *class = malloc(sizeof(cp_class_file_t));
+                cp_class_t *class = malloc(sizeof(cp_class_t));
                 class->name_index = read_u2(file);
                 info.info = (u1*) class;
                 break;
             }
-            case CONSTANT_MethodType:
-            case CONSTANT_String:
-             {
+            case CONSTANT_MethodType: {
                 info.info = read_bytes(file, 2);
+                break;
+            }
+            case CONSTANT_String: {
+                cp_string_t *cp_string = malloc(sizeof(cp_string_t));
+                cp_string->string_index = read_u2(file);
+                info.info = (u1*) cp_string;
                 break;
             }
             // todo 后续扩展更多tag
@@ -165,7 +167,6 @@ cp_info_t *read_constant_pool_bytes(class_file_bytes_t *class_bytes, u2 pool_len
                 cp_methodref_t *methodref = malloc(sizeof(cp_methodref_t));
                 methodref->class_index = read_bytes_u2(class_bytes);
                 methodref->name_and_type_index = read_bytes_u2(class_bytes);
-                methodref->resolved_method = NULL;
                 info.info = (u1*) methodref;
                 break;
             }
@@ -173,7 +174,6 @@ cp_info_t *read_constant_pool_bytes(class_file_bytes_t *class_bytes, u2 pool_len
                 cp_fieldref_t *fieldref = malloc(sizeof(cp_fieldref_t));
                 fieldref->class_index = read_bytes_u2(class_bytes);
                 fieldref->name_and_type_index = read_bytes_u2(class_bytes);
-                fieldref->resolved_field = NULL;
                 info.info = (u1*) fieldref;
                 break;
             }
@@ -203,7 +203,7 @@ cp_info_t *read_constant_pool_bytes(class_file_bytes_t *class_bytes, u2 pool_len
                 break;
             }
             case CONSTANT_Class: {
-                cp_class_file_t *class = malloc(sizeof(cp_class_file_t));
+                cp_class_t *class = malloc(sizeof(cp_class_t));
                 class->name_index = read_bytes_u2(class_bytes);
                 info.info = (u1*) class;
                 break;

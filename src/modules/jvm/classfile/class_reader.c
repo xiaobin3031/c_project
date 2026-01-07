@@ -1,6 +1,5 @@
 #include "class_reader.h"
 #include "../utils/bytes.h"
-#include "../../../core/list/arraylist.h"
 #include "constant_pool.h"
 #include "field.h"
 #include "method_info.h"
@@ -9,40 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-
-static void fill_class_info(class_file_t *class) {
-    cp_info_t cp_info = class->cp_pools[class->this_class];
-    check_cp_info_tag(cp_info.tag, CONSTANT_Class);
-    class->class_name = get_utf8(&class->cp_pools[((cp_class_file_t*)cp_info.info)->name_index]);
-    char *class_name = strdup(class->class_name);
-    char *ptr = class_name;
-    char *simple_name = ptr;
-    while(*ptr != '\0') {
-        if(*ptr == '/') {
-            simple_name = ptr + 1;
-        }else if(*ptr == '.'){
-            *ptr = '\0';
-            break;
-        }
-        ptr++;
-    }
-    class->class_simple_name = strdup(simple_name);
-    free(class_name);
-
-    if(class->fields_count > 0) {
-        u2 total_field_slots = 0;
-        for(u2 i=0;i<class->fields_count;i++) {
-            total_field_slots += class->fields[i].slot_count;
-        }
-        class->total_field_slots = total_field_slots;
-    }
-
-    class->state = CLASS_LOADED;
-    class->super = NULL;
-    class->interface_class = NULL;
-    pthread_mutex_init(&class->lock, NULL);
-}
 
 class_file_t *read_class_file(const char *path) {
 
@@ -90,8 +55,6 @@ class_file_t *read_class_file(const char *path) {
 
     fclose(class_file);
 
-    fill_class_info(class);
-
     return class;
 }
 
@@ -125,8 +88,6 @@ class_file_t *read_by_class_bytes(class_file_bytes_t *class_bytes) {
         printf("class file bytes is not end\n");
         return NULL;
     }
-
-    fill_class_info(class);
 
     return class;
 }

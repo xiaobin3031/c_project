@@ -1,9 +1,7 @@
 #include "interpreter.h"
-#include "../classfile/attr.h"
-#include "../classfile/constant_pool.h"
 #include "../runtime/frame.h"
 #include "../runtime/operand_stack.h"
-#include "../vm/classload.h"
+#include "../runtime/class.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,22 +11,19 @@ void handle_exception(jvm_thread_t *thread) {
     while(thread->current_frame != NULL) {
         frame_t *current_frame = thread->current_frame;
 
-        attr_file_code_t *attr_code = current_frame->attr_code;
-        if(attr_code->exception_table_length > 0) {
-            for(u2 i =0;i<attr_code->exception_table_length;i++) {
-                attr_file_exception_table_t exception_table = attr_code->exception_table[i];
-                if(current_frame->pc >= exception_table.start_pc && current_frame->pc < exception_table.end_pc && exception_table.end_pc <= attr_code->code_length) {
+        method_t *method = current_frame->method;
+        if(method->exception_table_length > 0) {
+            for(u2 i =0;i<method->exception_table_length;i++) {
+                rt_exception_table_t *exception_table = &method->exception_table[i];
+                if(current_frame->pc >= exception_table->start_pc && current_frame->pc < exception_table->end_pc && exception_table->end_pc <= method->code->code_length) {
                     // todo 找到handler
-                    if(exception_table.handler_pc != 0) {
+                    if(exception_table->handler_pc != 0) {
                         // 包装一个throw对象
                         object_t *throw_object = calloc(1, sizeof(object_t));
-                        cp_info_t *cp_pools = current_frame->current_class->cp_pools;
-                        cp_class_file_t *exception_class = get_cp_class(&cp_pools[exception_table.catch_type]);
-                        class_file_t *exception_class_object = load_class(get_utf8(&cp_pools[exception_class->name_index]), thread);
-                        throw_object->class = exception_class_object;
+                        throw_object->klass = current_frame->current_class->entries[exception_table->catch_type].klass;
                         clear_operand_stack(current_frame);
                         push(current_frame)->ref = throw_object;
-                        current_frame->pc = exception_table.handler_pc;
+                        current_frame->pc = exception_table->handler_pc;
                         // 删除错误信息
                         error_free(thread->error);
                         thread->error = NULL;

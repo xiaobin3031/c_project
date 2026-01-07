@@ -6,7 +6,6 @@
 #include "method_info.h"
 #include "field.h"
 #include "class_bytes.h"
-#include "../utils/jtype.h"
 #include <pthread.h>
 
 typedef struct class_file_t class_file_t;
@@ -21,15 +20,6 @@ enum class_acc_flags {
     CLASS_ACC_ANNOTATION = 0x2000,
     CLASS_ACC_ENUM = 0x4000,
     CLASS_ACC_MODULE = 0x8000
-};
-
-enum class_state {
-    CLASS_UNLOADED = 0,
-    CLASS_LOADED = 1,
-    CLASS_LINKED = 2,
-    CLASS_INITING = 3,
-    CLASS_INITIALIZED = 4,
-    CLASS_ERRONEOUS = 5
 };
 
 struct class_file_t {
@@ -49,23 +39,6 @@ struct class_file_t {
     method_file_t *methods;
     u2 attributes_count;
     attribute_file_t *attributes;
-
-    char *class_name;
-
-    char *class_simple_name;
-
-    // 属性的slot总数
-    u2 total_field_slots;
-
-    pthread_mutex_t lock;
-    enum class_state state;
-
-    class_file_t *super;
-
-    class_file_t **interface_class;
-
-    object_t *java_mirror;
-
 };
 
 class_file_t *read_class_file(const char *path);

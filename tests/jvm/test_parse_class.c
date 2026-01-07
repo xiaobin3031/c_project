@@ -6,14 +6,6 @@
 #include "../../src/modules/jvm/utils/slots.h"
 #include <string.h>
 
-int test_parse_class() {
-
-    project_t *project = load_project("../data/jvm");
-
-    run("Main", project);
-    return SUCCESS;
-}
-
 int test_slot_count() {
     // 1. 无参情况
     ASSERT_EQ(slot_count_from_desciptor("()V"), 0, "No arguments");
@@ -47,14 +39,6 @@ int test_slot_count() {
     return SUCCESS;
 }
 
-int junit_test_create() {
-    // char *src_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-admin/target/classes/com/shanshan/order/controller";
-    // char *dest_class_dir = "/mnt/e/code/shanshan-biz-order/shanshan-biz-order-coverage/src/test/java/com/shanshan/mock_test/order_admin";
-    // char *package_name = "com.shanshan.mock_test.order_admin";
-    // create_junit_test_class(src_class_dir, dest_class_dir, package_name);
-    return SUCCESS;
-}
-
 int junit_test_class_init() {
 
     project_t *project = load_project("../data/jvm");
@@ -74,10 +58,8 @@ int junit_test_class_clinit() {
 }
 
 test_case_t test_parse_class_cases[] = {
-    // {"test parse class magic", test_parse_class},
-    // {"test slot count", test_slot_count},
-    // {"junit test create", junit_test_create},
+    {"test slot count", test_slot_count},
     // {"junit test class init", junit_test_class_init},
-    {"junit test class clinit", junit_test_class_clinit},
+    // {"junit test class clinit", junit_test_class_clinit},
     {NULL, NULL}
 };

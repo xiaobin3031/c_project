@@ -1,7 +1,6 @@
 #pragma once
 
 #include "frame.h"
-#include "../utils/jtype.h"
 #include <ctype.h>
 
 slot_t *peek(frame_t *frame);
