@@ -9,7 +9,7 @@
 #include "../utils/jtype.h"
 #include <pthread.h>
 
-typedef struct class_t class_t;
+typedef struct class_file_t class_file_t;
 
 enum class_acc_flags {
     CLASS_ACC_PUBLIC = 0x0001,
@@ -32,7 +32,7 @@ enum class_state {
     CLASS_ERRONEOUS = 5
 };
 
-struct class_t {
+struct class_file_t {
     u4 magic;
     u2 minor_version;
     u2 major_version;
@@ -44,11 +44,11 @@ struct class_t {
     u2 interface_count;
     u2 *interfaces;
     u2 fields_count;
-    field_t *fields;
+    field_file_t *fields;
     u2 methods_count;
-    method_t *methods;
+    method_file_t *methods;
     u2 attributes_count;
-    attribute_t *attributes;
+    attribute_file_t *attributes;
 
     char *class_name;
 
@@ -60,18 +60,18 @@ struct class_t {
     pthread_mutex_t lock;
     enum class_state state;
 
-    class_t *super;
+    class_file_t *super;
 
-    class_t **interface_class;
+    class_file_t **interface_class;
 
     object_t *java_mirror;
 
 };
 
-class_t *read_class_file(const char *path);
+class_file_t *read_class_file(const char *path);
 
-class_t *read_by_class_bytes(class_bytes_t *class_bytes);
+class_file_t *read_by_class_bytes(class_file_bytes_t *class_bytes);
 
-void class_free(class_t *class);
+void class_free(class_file_t *class);
 
-int is_class(class_t *class);
+int is_class(class_file_t *class);

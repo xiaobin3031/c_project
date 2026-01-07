@@ -10,10 +10,10 @@ int method_is_flag(u2 access_flag, method_acc_flags flag) {
     return (access_flag & flag) == flag ? 1 : 0;
 }
 
-method_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools) {
-    method_t *methods = malloc(sizeof(method_t) * method_count);
+method_file_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools) {
+    method_file_t *methods = malloc(sizeof(method_file_t) * method_count);
     for (int i = 0; i < method_count; i++) { 
-        method_t method;
+        method_file_t method;
         method.access_flags = read_u2(file);
         u2 name_index = read_u2(file);
         method.name = get_utf8(&cp_pools[name_index]);
@@ -42,10 +42,10 @@ method_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools) {
     return methods;
 }
 
-method_t *read_methods_bytes(class_bytes_t *class_bytes, u2 method_count, cp_info_t *cp_pools) {
-    method_t *methods = malloc(sizeof(method_t) * method_count);
+method_file_t *read_methods_bytes(class_file_bytes_t *class_bytes, u2 method_count, cp_info_t *cp_pools) {
+    method_file_t *methods = malloc(sizeof(method_file_t) * method_count);
     for (int i = 0; i < method_count; i++) { 
-        method_t method;
+        method_file_t method;
         method.access_flags = read_bytes_u2(class_bytes);
         u2 name_index = read_bytes_u2(class_bytes);
         method.name = get_utf8(&cp_pools[name_index]);
@@ -77,6 +77,6 @@ method_t *read_methods_bytes(class_bytes_t *class_bytes, u2 method_count, cp_inf
 
 
 
-void method_free(method_t *methods, u2 method_count) {
+void method_free(method_file_t *methods, u2 method_count) {
     // todo free
 }

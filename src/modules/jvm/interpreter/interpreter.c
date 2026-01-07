@@ -6,24 +6,25 @@
 #include "../vm/classload.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void handle_exception(jvm_thread_t *thread) { 
 
     while(thread->current_frame != NULL) {
         frame_t *current_frame = thread->current_frame;
 
-        attr_code_t *attr_code = current_frame->attr_code;
+        attr_file_code_t *attr_code = current_frame->attr_code;
         if(attr_code->exception_table_length > 0) {
             for(u2 i =0;i<attr_code->exception_table_length;i++) {
-                exception_table_t exception_table = attr_code->exception_table[i];
+                attr_file_exception_table_t exception_table = attr_code->exception_table[i];
                 if(current_frame->pc >= exception_table.start_pc && current_frame->pc < exception_table.end_pc && exception_table.end_pc <= attr_code->code_length) {
                     // todo 找到handler
                     if(exception_table.handler_pc != 0) {
                         // 包装一个throw对象
                         object_t *throw_object = calloc(1, sizeof(object_t));
                         cp_info_t *cp_pools = current_frame->current_class->cp_pools;
-                        cp_class_t *exception_class = get_cp_class(&cp_pools[exception_table.catch_type]);
-                        class_t *exception_class_object = load_class(get_utf8(&cp_pools[exception_class->name_index]), thread);
+                        cp_class_file_t *exception_class = get_cp_class(&cp_pools[exception_table.catch_type]);
+                        class_file_t *exception_class_object = load_class(get_utf8(&cp_pools[exception_class->name_index]), thread);
                         throw_object->class = exception_class_object;
                         clear_operand_stack(current_frame);
                         push(current_frame)->ref = throw_object;
@@ -48,6 +49,9 @@ void interpret(jvm_thread_t *thread) {
             thread->current_frame->method->name,
             thread->current_frame->method->descriptor
         );
+        if(strcmp("getName", thread->current_frame->method->name) == 0) {
+            printf("match method\n");
+        }
 
         exec_instruction(thread);
 

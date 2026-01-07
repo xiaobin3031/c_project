@@ -30,9 +30,9 @@ void push_frame(jvm_thread_t *thread, frame_t *frame) {
     thread->current_frame = frame;
 }
 
-frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
+frame_t *frame_new(method_file_t *method, frame_t *invoker, class_file_t *current_class) {
     int is_static = method->access_flags & METHOD_ACC_STATIC;
-    attr_code_t *code_attr = NULL;
+    attr_file_code_t *code_attr = NULL;
     frame_t *frame = NULL;
     u2 max_locals = 0, max_stacks = 0;
 
@@ -44,7 +44,7 @@ frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
         // 非native方法，从code attr中获取执行的代码
         for(u2 i = 0; i < method->attributes_count; i++) {
             if(method->attributes[i].tag == ATTR_CODE) {
-                code_attr = (attr_code_t *)method->attributes[i].info;
+                code_attr = (attr_file_code_t *)method->attributes[i].info;
                 break;
             }
         }

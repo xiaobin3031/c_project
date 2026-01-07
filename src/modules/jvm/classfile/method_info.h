@@ -25,7 +25,7 @@ typedef struct {
     char *name;
     char *descriptor;
     u2 attributes_count;
-    attribute_t *attributes;
+    attribute_file_t *attributes;
 
     // 方法入参个数，这两个参数从descriptor中解析,  long/double占两个slot
     u2 arg_slot_count;
@@ -33,14 +33,14 @@ typedef struct {
     u2 stack_slot_count;
     // 返回值个数
     u2 return_slot_count;
-} method_t;
+} method_file_t;
 
 int method_is_flag(u2 access_flag, method_acc_flags flag);
 
-method_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools);
+method_file_t *read_methods(FILE *file, u2 method_count, cp_info_t *cp_pools);
 
-method_t *read_methods_bytes(class_bytes_t *class_bytes, u2 method_count, cp_info_t *cp_pools) ;
+method_file_t *read_methods_bytes(class_file_bytes_t *class_bytes, u2 method_count, cp_info_t *cp_pools) ;
 
 
 
-void method_free(method_t *methods, u2 method_count);
+void method_free(method_file_t *methods, u2 method_count);

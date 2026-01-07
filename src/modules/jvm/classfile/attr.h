@@ -56,14 +56,14 @@ typedef struct {
     u2 end_pc;
     u2 handler_pc;
     u2 catch_type;
-} exception_table_t;
+} attr_file_exception_table_t;
 
 typedef struct {
     u1 tag;
     u2 attribute_name_index;
     u4 attribute_length;
     u1 *info;
-} attribute_t;
+} attribute_file_t;
 
 typedef struct {
     u2 max_stack;
@@ -71,17 +71,17 @@ typedef struct {
     u4 code_length;
     u1 *code;
     u2 exception_table_length;
-    exception_table_t *exception_table;
+    attr_file_exception_table_t *exception_table;
     u2 attributes_count;
-    attribute_t *attributes;
-} attr_code_t;
+    attribute_file_t *attributes;
+} attr_file_code_t;
 
 int is_attr_tag(u1 tag, u1 special_tag);
 
-attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools);
+attribute_file_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools);
 
-attribute_t *read_attributes_bytes(class_bytes_t *class_bytes, u2 attr_count, cp_info_t *cp_pools);
+attribute_file_t *read_attributes_bytes(class_file_bytes_t *class_bytes, u2 attr_count, cp_info_t *cp_pools);
 
 
 
-void attr_free(attribute_t *attrs, u2 attr_count);
+void attr_free(attribute_file_t *attrs, u2 attr_count);

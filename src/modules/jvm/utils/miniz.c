@@ -5466,7 +5466,7 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
 
             do
             {
-                mz_uint32 field_id, field_data_size, field_total_size;
+                mz_uint32 field_id, field_data_size, field_file_total_size;
 
                 if (extra_size_remaining < (sizeof(mz_uint16) * 2))
                 {
@@ -5476,9 +5476,9 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
 
                 field_id = MZ_READ_LE16(pExtra_data);
                 field_data_size = MZ_READ_LE16(pExtra_data + sizeof(mz_uint16));
-                field_total_size = field_data_size + sizeof(mz_uint16) * 2;
+                field_file_total_size = field_data_size + sizeof(mz_uint16) * 2;
 
-                if (field_total_size > extra_size_remaining)
+                if (field_file_total_size > extra_size_remaining)
                 {
                     mz_zip_set_error(pZip, MZ_ZIP_INVALID_HEADER_OR_CORRUPTED);
                     goto handle_failure;
@@ -5501,8 +5501,8 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
                     break;
                 }
 
-                pExtra_data += field_total_size;
-                extra_size_remaining -= field_total_size;
+                pExtra_data += field_file_total_size;
+                extra_size_remaining -= field_file_total_size;
             } while (extra_size_remaining);
         }
 
@@ -7028,26 +7028,26 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
 
             do
             {
-                mz_uint32 field_id, field_data_size, field_total_size;
+                mz_uint32 field_id, field_data_size, field_file_total_size;
 
                 if (extra_size_remaining < (sizeof(mz_uint16) * 2))
                     return mz_zip_set_error(pZip, MZ_ZIP_INVALID_HEADER_OR_CORRUPTED);
 
                 field_id = MZ_READ_LE16(pExtra_data);
                 field_data_size = MZ_READ_LE16(pExtra_data + sizeof(mz_uint16));
-                field_total_size = field_data_size + sizeof(mz_uint16) * 2;
+                field_file_total_size = field_data_size + sizeof(mz_uint16) * 2;
 
-                if (field_total_size > extra_size_remaining)
+                if (field_file_total_size > extra_size_remaining)
                     return mz_zip_set_error(pZip, MZ_ZIP_INVALID_HEADER_OR_CORRUPTED);
 
                 if (field_id != MZ_ZIP64_EXTENDED_INFORMATION_FIELD_HEADER_ID)
                 {
-                    if (!mz_zip_array_push_back(pZip, pNew_ext, pExtra_data, field_total_size))
+                    if (!mz_zip_array_push_back(pZip, pNew_ext, pExtra_data, field_file_total_size))
                         return mz_zip_set_error(pZip, MZ_ZIP_ALLOC_FAILED);
                 }
 
-                pExtra_data += field_total_size;
-                extra_size_remaining -= field_total_size;
+                pExtra_data += field_file_total_size;
+                extra_size_remaining -= field_file_total_size;
             } while (extra_size_remaining);
         }
 
@@ -7158,7 +7158,7 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
 
             do
             {
-                mz_uint32 field_id, field_data_size, field_total_size;
+                mz_uint32 field_id, field_data_size, field_file_total_size;
 
                 if (extra_size_remaining < (sizeof(mz_uint16) * 2))
                 {
@@ -7168,9 +7168,9 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
 
                 field_id = MZ_READ_LE16(pExtra_data);
                 field_data_size = MZ_READ_LE16(pExtra_data + sizeof(mz_uint16));
-                field_total_size = field_data_size + sizeof(mz_uint16) * 2;
+                field_file_total_size = field_data_size + sizeof(mz_uint16) * 2;
 
-                if (field_total_size > extra_size_remaining)
+                if (field_file_total_size > extra_size_remaining)
                 {
                     mz_zip_array_clear(pZip, &file_data_array);
                     return mz_zip_set_error(pZip, MZ_ZIP_INVALID_HEADER_OR_CORRUPTED);
@@ -7193,8 +7193,8 @@ static int mz_stat64(const char *path, struct __stat64 *buffer)
                     break;
                 }
 
-                pExtra_data += field_total_size;
-                extra_size_remaining -= field_total_size;
+                pExtra_data += field_file_total_size;
+                extra_size_remaining -= field_file_total_size;
             } while (extra_size_remaining);
 
             mz_zip_array_clear(pZip, &file_data_array);

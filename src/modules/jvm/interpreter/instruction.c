@@ -19,8 +19,8 @@
 #include <execinfo.h>
 #include <stdarg.h>
 
-static class_t *to_class(object_t *obj) {
-    return (class_t *)obj->class;
+static class_file_t *to_class(object_t *obj) {
+    return (class_file_t *)obj->class;
 }
 static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char *message, ...) {
     va_list args;
@@ -36,14 +36,14 @@ static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char 
     }
 }
 
-static field_t *resolve_field(jvm_thread_t *thread, class_t *target_class, 
+static field_file_t *resolve_field(jvm_thread_t *thread, class_file_t *target_class, 
     const char *field_name, const char *field_descriptor) {
     ensure_class_initialized(target_class, thread);
     if(target_class->state == CLASS_ERRONEOUS) {
         return NULL;
     }
     for(u2 i = 0; i < target_class->fields_count; i++) {
-        field_t *local_field = &target_class->fields[i];
+        field_file_t *local_field = &target_class->fields[i];
         if(strcmp(field_name, local_field->name) == 0 && strcmp(field_descriptor, local_field->descriptor) == 0) {
             return local_field;
         }
@@ -56,14 +56,14 @@ static field_t *resolve_field(jvm_thread_t *thread, class_t *target_class,
     return NULL;
 }
 
-static field_t *find_static_field(jvm_thread_t *thread, cp_info_t *cp_pools, u2 index) {
+static field_file_t *find_static_field(jvm_thread_t *thread, cp_info_t *cp_pools, u2 index) {
     cp_info_t info = cp_pools[index];
     check_cp_info_tag(info.tag, CONSTANT_Fieldref);
     cp_fieldref_t *fieldref = (cp_fieldref_t *)info.info;
-    field_t *field = fieldref->resolved_field;
+    field_file_t *field = fieldref->resolved_field;
     if(field == NULL) {
-        cp_class_t *class = get_cp_class(&cp_pools[fieldref->class_index]);
-        class_t *target_class = load_class(get_utf8(&cp_pools[class->name_index]), thread);
+        cp_class_file_t *class = get_cp_class(&cp_pools[fieldref->class_index]);
+        class_file_t *target_class = load_class(get_utf8(&cp_pools[class->name_index]), thread);
         cp_nameandtype_t *nameandtype = get_cp_nameandtype(&cp_pools[fieldref->name_and_type_index]);
         char *field_name = get_utf8(&cp_pools[nameandtype->name_index]);
         char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
@@ -87,12 +87,12 @@ static field_t *find_static_field(jvm_thread_t *thread, cp_info_t *cp_pools, u2 
     return NULL;
 }
 
-static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, frame_t *cur_frame) {
-    method_t *call_method = NULL;
+static int run_method(jvm_thread_t *thread, class_file_t *class, u2 methodref_index, frame_t *cur_frame) {
+    method_file_t *call_method = NULL;
     cp_methodref_t *methodref = NULL;
     char *target_class_name = NULL;
-    class_t *target_class = NULL;
-    cp_class_t *target_cp_class = NULL;
+    class_file_t *target_class = NULL;
+    cp_class_file_t *target_cp_class = NULL;
     cp_info_t *cp_pools = class->cp_pools;
 
     methodref = get_cp_methodref(&cp_pools[methodref_index]);
@@ -105,7 +105,7 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
         return 1;
     }
     if(methodref->resolved_method != NULL) {
-        call_method = (method_t *)methodref->resolved_method;
+        call_method = (method_file_t *)methodref->resolved_method;
     } else {
         cp_nameandtype_t *nametype = get_cp_nameandtype(&cp_pools[methodref->name_and_type_index]);
         char *run_method_name = get_utf8(&cp_pools[nametype->name_index]);
@@ -118,7 +118,7 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
         // }
         char *run_method_descriptor = get_utf8(&cp_pools[nametype->descriptor_index]);
         for(int i=0;i<target_class->methods_count;i++) {
-            method_t *method = &target_class->methods[i];
+            method_file_t *method = &target_class->methods[i];
             if(strcmp(run_method_name, method->name) == 0 && strcmp(run_method_descriptor, method->descriptor) == 0) {
                 methodref->resolved_method = method;
                 call_method = method;
@@ -137,14 +137,23 @@ static int run_method(jvm_thread_t *thread, class_t *class, u2 methodref_index, 
             target_class->class_name, call_method->name, call_method->descriptor);
         native_fn fn = find_native_method(target_class_name, call_method->name, call_method->descriptor);
         if(fn != NULL) {
+            // 让gc可以扫描到变量
             push_frame(thread, run_frame);
             fn(thread, run_frame);
             char *descriptor = call_method->descriptor;
             if(call_method->return_slot_count > 0) {
                 // 有返回值
-                // todo 根据返回值个数，复制到当前栈， long double占2个
-                slot_t *ret = pop(run_frame);
-                push(cur_frame)->ref = ret->ref;
+                slot_t args[call_method->return_slot_count];
+                for(int i=0;i<call_method->return_slot_count;i++) {
+                    slot_t *ret = pop(run_frame);
+                    args[i].bits = ret->bits;
+                    args[i].ref = ret->ref;
+                }
+                for(int i=call_method->return_slot_count-1;i>=0;i--) {
+                    slot_t *slot = push(cur_frame);
+                    slot->bits = args[i].bits;
+                    slot->ref = args[i].ref;
+                }
             }
             pop_frame(thread);
         }
@@ -163,18 +172,18 @@ static void go_to_by_index(frame_t *frame) {
     frame->pc += index;
 }
 
-static int is_class_assignable(class_t *from, class_t *to) {
+static int is_class_assignable(class_file_t *from, class_file_t *to) {
     if(is_class(to)) {
         if(from == to) {
             return 1;
         }
-        for(class_t *super = from->super; super; super = super->super) {
+        for(class_file_t *super = from->super; super; super = super->super) {
             if(super == to) return 1;
         }
     }else if(to->access_flags && CLASS_ACC_INTERFACE) {
         // from实现了to接口
         for(int i=0;i<from->interface_count;i++) {
-            class_t *interface = from->interface_class[i];
+            class_file_t *interface = from->interface_class[i];
             if(interface == to) return 1;
         }
     }
@@ -261,7 +270,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     u1 *codes = frame->attr_code->code;
     u1 opcode;
-    class_t *class = frame->current_class;
+    class_file_t *class = frame->current_class;
     cp_info_t *cp_pools = class->cp_pools;
 
     while(frame->pc < code_length) {
@@ -378,7 +387,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     slot->ref->class = load_class("java/lang/String", thread);
                     slot->ref->strings = string;
                 }else if(is_cp_info_tag(cp_info.tag, CONSTANT_Class)) {
-                    cp_class_t *cp_class = (cp_class_t *)cp_info.info;
+                    cp_class_file_t *cp_class = (cp_class_file_t *)cp_info.info;
                     slot_t *slot = push(frame);
                     if(slot->ref == NULL) {
                         slot->ref = calloc(1, sizeof(object_t));
@@ -1207,7 +1216,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 index1 = codes[frame->pc+1];
                 u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                field_t *field = find_static_field(thread, cp_pools, index);
+                field_file_t *field = find_static_field(thread, cp_pools, index);
                 if(field == NULL) return;
 
                 slot_t *stack_slot = push(frame);
@@ -1221,7 +1230,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 high = codes[frame->pc+1];
                 u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
-                field_t *field = find_static_field(thread, cp_pools, index);
+                field_file_t *field = find_static_field(thread, cp_pools, index);
                 if(field == NULL) return;
 
                 for(int i = 0; i < field->slot_count; i++) {
@@ -1243,11 +1252,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
 
                 // 找到field所在的class，获取field在实例对象中的位置和属性数量
-                cp_class_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
-                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]), thread);
-                field_t *target_field;
+                cp_class_file_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
+                class_file_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]), thread);
+                field_file_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
-                    field_t *field = &target_class->fields[i];
+                    field_file_t *field = &target_class->fields[i];
                     if(strcmp(field_name, field->name) == 0 && strcmp(field_descriptor, field->descriptor) == 0){
                         target_field = field;
                         break;
@@ -1284,11 +1293,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 char *field_descriptor = get_utf8(&cp_pools[nameandtype->descriptor_index]);
 
                 // 找到field所在的class，获取field在实例对象中的位置和属性数量
-                cp_class_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
-                class_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]), thread);
-                field_t *target_field;
+                cp_class_file_t *target_class_info = get_cp_class(&cp_pools[fieldref->class_index]);
+                class_file_t *target_class = load_class(get_utf8(&cp_pools[target_class_info->name_index]), thread);
+                field_file_t *target_field;
                 for(u2 i = 0;i<target_class->fields_count;i++) {
-                    field_t *field = &target_class->fields[i];
+                    field_file_t *field = &target_class->fields[i];
                     if(strcmp(field_name, field->name) == 0 && strcmp(field_descriptor, field->descriptor) == 0){
                         target_field = field;
                         break;
@@ -1357,9 +1366,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 index1 = codes[frame->pc+1];
                 u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
-                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
+                cp_class_file_t *cp_class = get_cp_class(&cp_pools[index]);
                 char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
-                class_t *local_class = load_class(class_name, thread);
+                class_file_t *local_class = load_class(class_name, thread);
                 ensure_class_initialized(local_class, thread);
                 if(local_class->state == CLASS_ERRONEOUS) {
                     return;
@@ -1408,8 +1417,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 high = codes[frame->pc + 1];
                 u1 low = codes[frame->pc + 2];
                 u2 index = (high << 8) | low;
-                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
-                class_t *local_class = load_class(get_utf8(&cp_pools[cp_class->name_index]), thread);
+                cp_class_file_t *cp_class = get_cp_class(&cp_pools[index]);
+                class_file_t *local_class = load_class(get_utf8(&cp_pools[cp_class->name_index]), thread);
                 slot_t *slot = push(frame);
                 if(slot->ref == NULL) {
                     slot->ref = calloc(1, sizeof(object_t));
@@ -1440,7 +1449,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 high = codes[frame->pc+1];
                 u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
-                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
+                cp_class_file_t *cp_class = get_cp_class(&cp_pools[index]);
                 object_t *ref = peek(frame)->ref;
                 if(ref != NULL) {
                     char *class_name = get_utf8(&cp_pools[cp_class->name_index]);
@@ -1460,7 +1469,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 high = codes[frame->pc+1];
                 u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
-                cp_class_t *cp_class = get_cp_class(&cp_pools[index]);
+                cp_class_file_t *cp_class = get_cp_class(&cp_pools[index]);
                 object_t *ref = pop(frame)->ref;
                 if(ref == NULL) {
                     push_int(frame, 0);

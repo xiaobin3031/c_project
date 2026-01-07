@@ -37,7 +37,7 @@ typedef struct {
 
 typedef struct {
     u2 name_index;
-} cp_class_t;
+} cp_class_file_t;
 
 typedef struct {
     u2 name_index;
@@ -62,7 +62,7 @@ typedef struct {
 } cp_info_t;
 
 cp_methodref_t *get_cp_methodref(cp_info_t *cp_info);
-cp_class_t *get_cp_class(cp_info_t *cp_info);
+cp_class_file_t *get_cp_class(cp_info_t *cp_info);
 cp_fieldref_t *get_cp_fieldref(cp_info_t *cp_info);
 cp_nameandtype_t *get_cp_nameandtype(cp_info_t *cp_info);
 
@@ -71,6 +71,6 @@ void check_cp_info_tag(u1 tag, u1 special_tag);
 
 cp_info_t *read_constant_pool(FILE *file, u2 pool_size);
 
-cp_info_t *read_constant_pool_bytes(class_bytes_t *class_bytes, u2 pool_size);
+cp_info_t *read_constant_pool_bytes(class_file_bytes_t *class_bytes, u2 pool_size);
 
 char *get_utf8(cp_info_t *cp_info);

@@ -11,10 +11,10 @@
 #include <string.h>
 #include <pthread.h>
 
-static void fill_class_info(class_t *class) {
+static void fill_class_info(class_file_t *class) {
     cp_info_t cp_info = class->cp_pools[class->this_class];
     check_cp_info_tag(cp_info.tag, CONSTANT_Class);
-    class->class_name = get_utf8(&class->cp_pools[((cp_class_t*)cp_info.info)->name_index]);
+    class->class_name = get_utf8(&class->cp_pools[((cp_class_file_t*)cp_info.info)->name_index]);
     char *class_name = strdup(class->class_name);
     char *ptr = class_name;
     char *simple_name = ptr;
@@ -44,7 +44,7 @@ static void fill_class_info(class_t *class) {
     pthread_mutex_init(&class->lock, NULL);
 }
 
-class_t *read_class_file(const char *path) {
+class_file_t *read_class_file(const char *path) {
 
     FILE *class_file;
 
@@ -55,7 +55,7 @@ class_t *read_class_file(const char *path) {
 
     // printf("read class file: %s\n", path);
 
-    class_t *class = calloc(1, sizeof(class_t));
+    class_file_t *class = calloc(1, sizeof(class_file_t));
     class->magic = read_u4(class_file);
     class->minor_version = read_u2(class_file);
     class->major_version = read_u2(class_file);
@@ -95,9 +95,9 @@ class_t *read_class_file(const char *path) {
     return class;
 }
 
-class_t *read_by_class_bytes(class_bytes_t *class_bytes) {
+class_file_t *read_by_class_bytes(class_file_bytes_t *class_bytes) {
 
-    class_t *class = calloc(1, sizeof(class_t));
+    class_file_t *class = calloc(1, sizeof(class_file_t));
     class->magic = read_bytes_u4(class_bytes);
     class->minor_version = read_bytes_u2(class_bytes);
     class->major_version = read_bytes_u2(class_bytes);
@@ -132,7 +132,7 @@ class_t *read_by_class_bytes(class_bytes_t *class_bytes) {
 }
 
 
-int is_class(class_t *class) {
+int is_class(class_file_t *class) {
     return !(
         class->access_flags & CLASS_ACC_INTERFACE
         || class->access_flags & CLASS_ACC_ANNOTATION
@@ -146,6 +146,6 @@ int is_class(class_t *class) {
 
 
 
-void class_free(class_t *class) {
+void class_free(class_file_t *class) {
     // todo free
 }

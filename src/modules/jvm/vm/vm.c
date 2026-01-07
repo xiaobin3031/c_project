@@ -14,9 +14,9 @@ void run(const char *main_class_file, project_t *project) {
     bootstrap(project);
 
     jvm_thread_t *main_thread = jvm_thread_new();
-    class_t *main_class = load_class(main_class_file, main_thread);
+    class_file_t *main_class = load_class(main_class_file, main_thread);
     ensure_class_initialized(main_class, main_thread);
-    method_t *main_method = resolve_method(main_class, "main", "([Ljava/lang/String;)V");
+    method_file_t *main_method = resolve_method(main_class, "main", "([Ljava/lang/String;)V");
     frame_t *frame = frame_new(main_method, NULL, main_class);
 
     main_thread->current_frame = NULL;

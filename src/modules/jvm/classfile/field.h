@@ -21,17 +21,17 @@ typedef struct {
     char *name;
     char *descriptor;
     u2 attributes_count;
-    attribute_t *attributes;
+    attribute_file_t *attributes;
 
     u2 slot_offset_in_class;
     // long or double占两个slot
     u2 slot_count;
     void *init_value;
-} field_t;
+} field_file_t;
 
 
-field_t *read_fields(FILE *file, u2 field_count, cp_info_t *cp_pools);
+field_file_t *read_fields(FILE *file, u2 field_count, cp_info_t *cp_pools);
 
-field_t *read_fields_bytes(class_bytes_t *class_bytes, u2 field_count, cp_info_t *cp_pools);
+field_file_t *read_fields_bytes(class_file_bytes_t *class_bytes, u2 field_count, cp_info_t *cp_pools);
 
-void field_free(field_t *fields, u2 field_count);
+void field_free(field_file_t *fields, u2 field_count);

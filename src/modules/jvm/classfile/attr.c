@@ -10,16 +10,16 @@ int is_attr_tag(u1 tag, u1 special_tag) {
     return tag == special_tag;
 }
 
-attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
+attribute_file_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
     if(attr_count <= 0) return NULL;
 
-    attribute_t *attrs = malloc(attr_count * sizeof(attribute_t));
+    attribute_file_t *attrs = malloc(attr_count * sizeof(attribute_file_t));
     for(u2 i = 0; i < attr_count; i++) {
         u2 attr_name_index = read_u2(file);
         cp_info_t info = cp_pools[attr_name_index];
         char *attr_name = get_utf8(&info);
-        attribute_t attr;
-        memset(&attr, 0, sizeof(attribute_t));
+        attribute_file_t attr;
+        memset(&attr, 0, sizeof(attribute_file_t));
         attr.attribute_name_index = attr_name_index;
         attr.attribute_length = read_u4(file);
         if(attr.attribute_length > 0 
@@ -29,15 +29,15 @@ attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
         }
         if(strcmp(attr_name, "Code") == 0) {
             attr.tag = ATTR_CODE;
-            attr_code_t code_attr;
-            memset(&code_attr, 0, sizeof(attr_code_t));
+            attr_file_code_t code_attr;
+            memset(&code_attr, 0, sizeof(attr_file_code_t));
             code_attr.max_stack = read_u2(file);
             code_attr.max_locals = read_u2(file);
             code_attr.code_length = read_u4(file);
             code_attr.code = read_bytes(file, code_attr.code_length);
             code_attr.exception_table_length = read_u2(file);
             if(code_attr.exception_table_length > 0) {
-                code_attr.exception_table = malloc(code_attr.exception_table_length * sizeof(exception_table_t));
+                code_attr.exception_table = malloc(code_attr.exception_table_length * sizeof(attr_file_exception_table_t));
                 for(u2 j = 0; j < code_attr.exception_table_length; j++) {
                     code_attr.exception_table[j].start_pc = read_u2(file);
                     code_attr.exception_table[j].end_pc = read_u2(file);
@@ -118,15 +118,15 @@ attribute_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools) {
     return attrs;
 }
 
-attribute_t *read_attributes_bytes(class_bytes_t *class_bytes, u2 attr_count, cp_info_t *cp_pools) {
+attribute_file_t *read_attributes_bytes(class_file_bytes_t *class_bytes, u2 attr_count, cp_info_t *cp_pools) {
     if(attr_count <= 0) return NULL;
 
-    attribute_t *attrs = malloc(attr_count * sizeof(attribute_t));
+    attribute_file_t *attrs = malloc(attr_count * sizeof(attribute_file_t));
     for(u2 i = 0; i < attr_count; i++) {
         u2 attr_name_index = read_bytes_u2(class_bytes);
         cp_info_t info = cp_pools[attr_name_index];
         char *attr_name = get_utf8(&info);
-        attribute_t attr;
+        attribute_file_t attr;
         attr.attribute_name_index = attr_name_index;
         attr.attribute_length = read_bytes_u4(class_bytes);
         attr.info = NULL;
@@ -137,14 +137,14 @@ attribute_t *read_attributes_bytes(class_bytes_t *class_bytes, u2 attr_count, cp
         }
         if(strcmp(attr_name, "Code") == 0) {
             attr.tag = ATTR_CODE;
-            attr_code_t *code_attr = malloc(sizeof(attr_code_t));
+            attr_file_code_t *code_attr = malloc(sizeof(attr_file_code_t));
             code_attr->max_stack = read_bytes_u2(class_bytes);
             code_attr->max_locals = read_bytes_u2(class_bytes);
             code_attr->code_length = read_bytes_u4(class_bytes);
             code_attr->code = read_bytes_bytes(class_bytes, code_attr->code_length);
             code_attr->exception_table_length = read_bytes_u2(class_bytes);
             if(code_attr->exception_table_length > 0) {
-                code_attr->exception_table = malloc(code_attr->exception_table_length * sizeof(exception_table_t));
+                code_attr->exception_table = malloc(code_attr->exception_table_length * sizeof(attr_file_exception_table_t));
                 for(u2 j = 0; j < code_attr->exception_table_length; j++) {
                     code_attr->exception_table[j].start_pc = read_bytes_u2(class_bytes);
                     code_attr->exception_table[j].end_pc = read_bytes_u2(class_bytes);
@@ -231,6 +231,6 @@ attribute_t *read_attributes_bytes(class_bytes_t *class_bytes, u2 attr_count, cp
 
 
 
-void attr_free(attribute_t *attrs, u2 attr_count) {
+void attr_free(attribute_file_t *attrs, u2 attr_count) {
     // todo free
 }
