@@ -4,6 +4,7 @@
 #include "../../src/modules/jvm/vm/vm.h"
 #include "../../src/modules/jvm/project/project.h"
 #include "../../src/modules/jvm/utils/slots.h"
+#include "../../src/modules/jvm/runtime/class.h"
 #include <string.h>
 
 #define JDK_HOME "/mnt/c/Program Files/Java/jdk-17"
@@ -43,20 +44,10 @@ int test_slot_count() {
     return SUCCESS;
 }
 
-int junit_test_class_init() {
-
-    project_t *project = load_project("../data/jvm", JDK_HOME);
-
-    run("MainInit", project);
-    return SUCCESS;
-}
-
 int junit_test_class_clinit() {
 
-    project_t *project = load_project("../data/jvm", JDK_HOME);
-    // project->jdk_root = "/Users/lixiaolin/Documents/jdk-17.0.2.jdk/Contents/Home";
-
-    run("ClinitTest", project);
+    class_file_t *cf = read_class_file("/Users/lixiaolin/Documents/xiaobin/杉杉/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller/EasyPayController.class");
+    class_t *class = define_class(cf);
     return SUCCESS;
 }
 

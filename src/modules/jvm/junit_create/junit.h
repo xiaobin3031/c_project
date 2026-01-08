@@ -10,6 +10,7 @@ typedef struct {
 
 typedef struct {
     char *name;
+    char *return_type;
     arraylist *annos;
     arraylist *body;
 } test_method_t;
@@ -32,7 +33,7 @@ void create_junit_test_class(
     const char *new_package_name
 );
 
-test_method_t *test_method_new(const char *name);
+test_method_t *test_method_new(const char *name, const char *return_type);
 
 test_class_t *test_class_new(const char *package_name, const char *class_name);
 

@@ -4,15 +4,16 @@
 #include "../../../core/list/arraylist.h"
 #include <string.h>
 
-test_method_t *test_method_new(const char *name) {
+test_method_t *test_method_new(const char *name, const char *return_type) {
     test_method_t *method = malloc(sizeof(test_method_t));
-    method->name = name;
+    method->name = strdup(name);
+    method->return_type = strdup(return_type);
     method->annos = arraylist_new(2);
     method->body = arraylist_new(10);
     return method;
 }
 
-test_method_t *test_class_new(const char *package_name, const char *class_name) {
+test_class_t *test_class_new(const char *package_name, const char *class_name) {
     test_class_t *test_class = calloc(1, sizeof(test_class_t));
     test_class->package = strdup(package_name);
     test_class->class_name = strdup(class_name);
