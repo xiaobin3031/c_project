@@ -76,3 +76,5 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_size);
 cp_info_t *read_constant_pool_bytes(class_file_bytes_t *class_bytes, u2 pool_size);
 
 char *get_utf8(cp_info_t *cp_info);
+
+char *get_utf8_copy(cp_info_t *cp_info);

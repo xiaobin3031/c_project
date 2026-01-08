@@ -36,19 +36,18 @@ char* get_local_ip() {
 
 int start_with(const char *str, const char *prefix)
 {
-    while(*prefix) {
-        if(*str++ != *prefix++) return 0;
-    }
-    return 1;
+    size_t len = strlen(prefix);
+    return strncmp(str, prefix, len) == 0;
 }
 
 int end_with(const char *str, const char *suffix)
 { 
-    const char *ptr = str + strlen(str) - strlen(suffix);
-    while(*suffix) {
-        if(*ptr++ != *suffix++) return 0;
-    }
-    return 1;
+    size_t len1 = strlen(str);
+    size_t len2 = strlen(suffix);
+
+    if (len1 < len2) return 0;
+
+    return memcmp(str + len1 - len2, suffix, len2) == 0;
 }
 
 int is_integer(const char *str)

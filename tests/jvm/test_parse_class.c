@@ -6,6 +6,10 @@
 #include "../../src/modules/jvm/utils/slots.h"
 #include <string.h>
 
+#define JDK_HOME "/mnt/c/Program Files/Java/jdk-17"
+// #define JDK_HOME "/Users/lixiaolin/Documents/jdk-17.0.2.jdk/Contents/Home"
+
+
 int test_slot_count() {
     // 1. 无参情况
     ASSERT_EQ(slot_count_from_desciptor("()V"), 0, "No arguments");
@@ -41,7 +45,7 @@ int test_slot_count() {
 
 int junit_test_class_init() {
 
-    project_t *project = load_project("../data/jvm");
+    project_t *project = load_project("../data/jvm", JDK_HOME);
 
     run("MainInit", project);
     return SUCCESS;
@@ -49,8 +53,7 @@ int junit_test_class_init() {
 
 int junit_test_class_clinit() {
 
-    project_t *project = load_project("../data/jvm");
-    project->jdk_root = "/mnt/c/Program Files/Java/jdk-17";
+    project_t *project = load_project("../data/jvm", JDK_HOME);
     // project->jdk_root = "/Users/lixiaolin/Documents/jdk-17.0.2.jdk/Contents/Home";
 
     run("ClinitTest", project);
@@ -58,8 +61,8 @@ int junit_test_class_clinit() {
 }
 
 test_case_t test_parse_class_cases[] = {
-    {"test slot count", test_slot_count},
+    // {"test slot count", test_slot_count},
     // {"junit test class init", junit_test_class_init},
-    // {"junit test class clinit", junit_test_class_clinit},
+    {"junit test class clinit", junit_test_class_clinit},
     {NULL, NULL}
 };

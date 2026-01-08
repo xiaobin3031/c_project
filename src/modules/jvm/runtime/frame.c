@@ -29,7 +29,7 @@ void push_frame(jvm_thread_t *thread, frame_t *frame) {
     thread->current_frame = frame;
 }
 
-frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
+frame_t *frame_new(method_t *method, frame_t *invoker) {
     int is_static = method->access_flags & METHOD_ACC_STATIC;
     frame_t *frame = NULL;
     u2 max_locals = 0, max_stacks = 0;
@@ -82,7 +82,6 @@ frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class) {
             local->ref = stack->ref;
         }
     }
-    frame->current_class = current_class;
     frame->method = method;
     return frame;
 }

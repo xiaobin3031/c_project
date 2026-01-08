@@ -12,7 +12,7 @@ arraylist *arraylist_new(size_t init_capacity) {
 
 void arraylist_add(arraylist *list, void *value) { 
     if (list->size == list->capacity) {
-        list->capacity = list->step_capacity * 2;
+        list->capacity += list->step_capacity;
         list->values = realloc(list->values, sizeof(void*) * list->capacity);
     }
     list->values[list->size++] = value;

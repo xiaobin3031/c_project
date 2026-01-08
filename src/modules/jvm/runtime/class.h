@@ -72,6 +72,8 @@ typedef struct {
     u2 arg_slot_count;
     // 返回值个数
     u2 return_slot_count;
+
+    class_t *klass;
 } method_t;
 
 typedef struct {
@@ -149,6 +151,7 @@ typedef enum {
 
     OBJ_TYPE_INSTANCE,
     OBJ_TYPE_ARRAY,
+    OBJ_TYPE_EXCEPTION,
 
 } object_type_e;
 
@@ -165,6 +168,8 @@ struct object_t {
             int length;
             slot_t *elements;
         } array;
+
+        int catch_type;
     };
 
     void *native_string;
@@ -174,6 +179,8 @@ struct slot_t {
     uint32_t bits;
     object_t *ref;
 };
+
+char *resolve_class_name(class_file_t *cf);
 
 class_t *define_class(class_file_t *class_file);
 

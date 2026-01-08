@@ -1,10 +1,9 @@
 #include "vm.h"
-#include "../classfile/method_info.h"
 #include "../runtime/frame.h"
+#include "../runtime/native.h"
 #include "../interpreter/interpreter.h"
 #include "../project/project.h"
 #include "classload.h"
-#include "../native/native.h"
 #include <stdio.h>
 
 void run(const char *main_class_file, project_t *project) {
@@ -17,7 +16,7 @@ void run(const char *main_class_file, project_t *project) {
     class_t *main_class = load_class(main_class_file, main_thread);
     ensure_class_initialized(main_class, main_thread);
     method_t *main_method = find_method(main_class, "main", "([Ljava/lang/String;)V");
-    frame_t *frame = frame_new(main_method, NULL, main_class);
+    frame_t *frame = frame_new(main_method, NULL);
 
     main_thread->current_frame = NULL;
     push_frame(main_thread, frame);

@@ -1,14 +1,13 @@
 #include "classload.h"
-#include "../classfile/method_info.h"
 #include "../runtime/frame.h"
+#include "../runtime/class.h"
 #include "../classfile/attr.h"
 #include "../classfile/class_reader.h"
+#include "../classfile/method_info.h"
 #include "../interpreter/interpreter.h"
 #include "../project/project.h"
 #include "../../../core/list/arraylist.h"
-#include "../../../core/utils.h"
 #include "../utils/miniz.h"
-#include "../runtime/class.h"
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
@@ -16,7 +15,7 @@
 static project_t *g_project;
 static arraylist *g_class_list;
 
-const char* atype_to_descriptor(u1 atype) {
+static const char* atype_to_descriptor(u1 atype) {
     switch (atype) {
         case 4:  return "Z";
         case 5:  return "C";
@@ -51,8 +50,6 @@ method_t *find_method(class_t *class, const char *method_name, const char *metho
         }
     }
     return NULL;
-    // fprintf(stderr, "cannot find method: %s %s in class %s\n", method_name, method_descriptor, class->class_name);
-    // abort();
 }
 
 class_t *load_class(const char *class_name, jvm_thread_t *thread) {
@@ -60,21 +57,32 @@ class_t *load_class(const char *class_name, jvm_thread_t *thread) {
     class_t *class = find_class(class_name);
     if(class == NULL) {
         // printf("load class name: %s, g_class_list.size: %ld\n", class_file, g_class_list->size);
-        char full_path[1024];
-        snprintf(full_path, sizeof(full_path), "%s/%s.class", g_project->root_path, class_name);
-        class_file_t *class_file = read_class_file(full_path);
-        class = define_class(class_file);
-        if(class) {
-            arraylist_add(g_class_list, class);
-            // if(class->major_version != 61) {
-            //     perror("UnsupportedClassVersionError");
-            //     abort();
-            // }
-            if(strcmp(class->class_name, class_name) != 0) {
-                fprintf(stderr, "NoClassDefFoundError: %s\n", class_file);
-                abort();
+        class_file_source_t *class_file_source = NULL;
+        arraylist *list = g_project->class_file_source;
+        for(size_t i = 0; i < list->size; i++) {
+            class_file_source_t *source = list->values[i];
+            if(strcmp(source->name, class_name) == 0) {
+                class_file_source = source;
+                break;
             }
-            class->state = CLASS_LOADED;
+        }
+        if(class_file_source != NULL) {
+            class_file_t *class_file = NULL;
+            if(class_file_source->source == CLASS_FILE_SOURCE_FILE) {
+                class_file = read_class_file(class_file_source->path);
+            } else if(class_file_source->source == CLASS_FILE_SOURCE_JMOD) {
+                size_t size;
+                void* data = mz_zip_reader_extract_to_heap(g_project->jmod_base_zip, class_file_source->index, &size, 0);
+                class_file_bytes_t *class_bytes = class_bytes_new((u1*)data, size);
+                class_file = read_by_class_bytes(class_bytes);
+                free(class_bytes);
+                free(data);
+            }
+            class = define_class(class_file);
+            if(class) {
+                arraylist_add(g_class_list, class);
+                class->state = CLASS_LOADED;
+            }
         }
     }
     if(class == NULL){
@@ -103,7 +111,7 @@ class_t *load_array_class(jvm_thread_t *thread, u1 type) {
         array_class->super = load_class("java/lang/Object", thread);
         array_class->interface_class = calloc(2, sizeof(class_t*));
         array_class->interface_class[0] = load_class("java/lang/Cloneable", thread);
-        array_class->interface_class[1] = load_class("java/lang/Serializable", thread);
+        array_class->interface_class[1] = load_class("java/io/Serializable", thread);
         array_class->interface_count = 2;
 
         arraylist_add(g_class_list, array_class);
@@ -221,7 +229,7 @@ void ensure_class_initialized(class_t *class, jvm_thread_t *thread) {
     if(clinit) {
         jvm_thread_t *clinit_thread = jvm_thread_new();
         printf("init class %s by clinit\n", class->class_name);
-        frame_t *clinit_frame = frame_new(clinit, NULL, class);
+        frame_t *clinit_frame = frame_new(clinit, NULL);
         push_frame(clinit_thread, clinit_frame);
         interpret(clinit_thread);
         error_t *error = clinit_thread->error;
@@ -237,22 +245,6 @@ void ensure_class_initialized(class_t *class, jvm_thread_t *thread) {
 
     class->state = CLASS_INITIALIZED;
     pthread_mutex_unlock(&class->lock);
-}
-
-void load_jdk_class(project_t *project, jvm_thread_t *thread, const char *class_name) { 
-}
-
-static int is_class_match(const char *file_name, const char *class_name) {
-    size_t class_name_len = strlen(class_name);
-    const char *ptr = file_name;
-    while(*ptr != '\0' && strlen(ptr) >= class_name_len) {
-        if(strncmp(ptr, class_name, class_name_len) == 0) {
-            // 匹配
-            return 0;
-        }
-        ptr++;
-    }
-    return 1;
 }
 
 void bootstrap(project_t *project) {
@@ -279,63 +271,7 @@ void bootstrap(project_t *project) {
 
     jvm_thread_t *main_thread = jvm_thread_new();
 
-    char buffer[1024];
-    mz_zip_archive zip;
-
-    sprintf(buffer, "%s/jmods/java.base.jmod", project->jdk_root);
-    memset(&zip, 0, sizeof(zip));
-    if (!mz_zip_reader_init_file(&zip, buffer, 0)) {
-        fprintf(stderr, "open jmod failed\n");
-        return;
-    }
-
-    // 获取文件总数
-    mz_uint num = mz_zip_reader_get_num_files(&zip);
-    for (mz_uint i = 0; i < num; i++) {
-        mz_zip_archive_file_stat st;
-
-        if (!mz_zip_reader_file_stat(&zip, i, &st))
-            continue;
-
-        if (st.m_is_directory)
-            continue;
-
-        if (!start_with(st.m_filename, "classes/"))
-            continue;
-
-        if (!end_with(st.m_filename, ".class"))
-            continue;
-        
-        if(is_class_match(st.m_filename, "java/io/FilterOutputStream") == 0) {
-            printf("match jdk class: %s\n", st.m_filename);
-        }
-
-        char *filename = strdup(st.m_filename);
-        size_t size;
-        void* data = mz_zip_reader_extract_to_heap(&zip, i, &size, 0);
-        // printf("load class file: %s, size: %ld\n", filename, size);
-        class_file_bytes_t *class_bytes = class_bytes_new((u1*)data, size);
-        class_file_t *class = read_by_class_bytes(class_bytes);
-        // printf("loaded class file: %s\n", class->class_name);
-        arraylist_add(g_class_list, class);
-        free(filename);
-        free(class_bytes);
-        free(data);
-    }
-
-    if(g_class_list->size > 0) {
-        for(size_t i = 0; i < g_class_list->size; i++) {
-            class_t *class = arraylist_get(g_class_list, i);
-            int is_white = 0;
-            for(int i=0;white_classes[i] != NULL;i++) {
-                if(strcmp(class->class_name, white_classes[i]) == 0) {
-                    is_white = 1;
-                    break;
-                }
-            }
-            if(is_white == 0) continue;
-
-            link_class(main_thread, class);
-        }
+    for (int i = 0; white_classes[i] != NULL; i++) {
+        load_class(white_classes[i], main_thread);
     }
 }

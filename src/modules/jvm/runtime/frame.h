@@ -22,7 +22,6 @@ struct frame_t {
     int16_t sp;
     u4 pc;
 
-    class_t *current_class;
     frame_t *invoker;
     jvm_thread_t *thread;
 
@@ -41,7 +40,7 @@ void pop_frame(jvm_thread_t *thread);
 
 void push_frame(jvm_thread_t *thread, frame_t *frame);
 
-frame_t *frame_new(method_t *method, frame_t *invoker, class_t *current_class);
+frame_t *frame_new(method_t *method, frame_t *invoker);
 
 jvm_thread_t *jvm_thread_new();
 

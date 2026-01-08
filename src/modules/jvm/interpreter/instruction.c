@@ -6,7 +6,7 @@
 #include "../runtime/class.h"
 #include "../vm/classload.h"
 #include "../utils/slots.h"
-#include "../native/native.h"
+#include "../runtime/native.h"
 #include "../runtime/jmemory.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,59 +29,68 @@ static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char 
     }
 }
 
-static class_t *resolve_class(jvm_thread_t *thread, rt_cp_entry_t *entry) {
-    if(entry->klass != NULL) return entry->klass;
+class_t *resolve_class(jvm_thread_t *thread, rt_cp_entry_t *entry) {
+    if(entry->resolved == 1) return entry->klass;
 
+    printf("resolve class: %s\n", entry->sym.class_name);
+    if(entry->sym.class_name == NULL) {
+        printf("class not found: %s\n", entry->sym.class_name);
+    }
     class_t *target_class = load_class(entry->sym.class_name, thread);
     if(target_class->state == CLASS_ERRONEOUS) {
         return NULL;
     }
     entry->klass = target_class;
+    entry->resolved = 1;
     return target_class;
 }
 
 static field_t *resolve_field(jvm_thread_t *thread, rt_cp_entry_t *entry) {
-    if(entry->field != NULL) return entry->field;
+    if(entry->resolved == 1) return entry->field;
 
     class_t *target_class = resolve_class(thread, entry);
-    if(target_class == NULL) return NULL;
-    
-    ensure_class_initialized(target_class, thread);
-    if(target_class->state == CLASS_ERRONEOUS) {
-        return NULL;
-    }
-    for(u2 i = 0; i < target_class->fields_count; i++) {
-        field_t *local_field = &target_class->fields[i];
-        if(strcmp(entry->sym.name, local_field->name) == 0 && strcmp(entry->sym.descriptor, local_field->descriptor) == 0) {
-            entry->field = local_field;
-            return local_field;
+    while(target_class != NULL) {
+        ensure_class_initialized(target_class, thread);
+        if(target_class->state == CLASS_ERRONEOUS) {
+            return NULL;
         }
-    }
+        for(u2 i = 0; i < target_class->fields_count; i++) {
+            field_t *local_field = &target_class->fields[i];
+            if(strcmp(entry->sym.name, local_field->name) == 0 && strcmp(entry->sym.descriptor, local_field->descriptor) == 0) {
+                entry->field = local_field;
+                entry->resolved = 1;
+                return local_field;
+            }
+        }
 
-    // todo 应该不需要查找父类吧
-    // if(target_class->super != NULL) {
-    //     return resolve_field(thread, target_class->super, field_name, field_descriptor);
-    // }
+        target_class = target_class->super;
+    }
 
     printf("field not found: %s %s\n", entry->sym.class_name, entry->sym.name);
     abort();
 }
 
 static method_t *resolve_method(jvm_thread_t *thread, class_t *class, rt_cp_entry_t *entry) {
+    if(entry->resolved == 1) return entry->method;
+
     class_t *target_class = resolve_class(thread, entry);
-    if(target_class == NULL) return NULL;
-
-    ensure_class_initialized(target_class, thread);
-    if(target_class->state == CLASS_ERRONEOUS) {
-        return NULL;
-    }
-
-    for(int i = 0; i < target_class->methods_count; i++) { 
-        method_t *method = &target_class->methods[i];
-        if(strcmp(method->name, entry->sym.name) == 0 && strcmp(method->descriptor, entry->sym.descriptor) == 0) {
-            entry->klass = target_class;
-            return method;
+    while(target_class != NULL) {
+        ensure_class_initialized(target_class, thread);
+        if(target_class->state == CLASS_ERRONEOUS) {
+            return NULL;
         }
+
+        for(int i = 0; i < target_class->methods_count; i++) { 
+            method_t *method = &target_class->methods[i];
+            if(strcmp(method->name, entry->sym.name) == 0 && strcmp(method->descriptor, entry->sym.descriptor) == 0) {
+                entry->method = method;
+                entry->resolved = 1;
+                return method;
+            }
+        }
+
+        // 查询父类
+        target_class = target_class->super;
     }
 
     fprintf(stderr, "cannot find method to run, %s %s\n", entry->sym.name, entry->sym.descriptor);
@@ -101,24 +110,15 @@ static field_t *find_static_field(jvm_thread_t *thread, rt_cp_entry_t *entry) {
 }
 
 static int run_method(jvm_thread_t *thread, u2 methodref_index, frame_t *cur_frame) {
-    method_t *call_method = NULL;
-    class_t *target_class = NULL;
-
-    class_t *class = thread->current_frame->current_class;
+    class_t *class = thread->current_frame->method->klass;
     rt_cp_entry_t *entry = &class->entries[methodref_index];
-    if(entry->method == NULL) {
-        call_method = resolve_method(thread, class, entry);
-    }else{
-        call_method = entry->method;
-    }
+    method_t *call_method = resolve_method(thread, class, entry);
 
-    target_class = entry->klass;
-
-    frame_t *run_frame = frame_new(call_method, cur_frame, target_class);
+    frame_t *run_frame = frame_new(call_method, cur_frame);
     if(call_method->access_flags & METHOD_ACC_NATIVE) {
         printf("native method: %s %s %s\n", 
-            target_class->class_name, call_method->name, call_method->descriptor);
-        native_fn fn = find_native_method(target_class->class_name, call_method->name, call_method->descriptor);
+            call_method->klass->class_name, call_method->name, call_method->descriptor);
+        native_fn fn = find_native_method(call_method->klass->class_name, call_method->name, call_method->descriptor);
         if(fn != NULL) {
             // 让gc可以扫描到变量
             push_frame(thread, run_frame);
@@ -197,7 +197,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     u1 *codes = frame->method->code->codes;
     u1 opcode;
-    class_t *class = frame->current_class;
+    class_t *class = frame->method->klass;
     rt_cp_entry_t *entries = class->entries;
 
     while(frame->pc < code_length) {
@@ -311,10 +311,12 @@ void exec_instruction(jvm_thread_t *thread) {
                     slot->ref = ref;
                 }else if(entry->tag == RT_CONSTANT_Class) {
                     slot_t *slot = push(frame);
+                    class_t *klass = resolve_class(thread, entry);
                     if(slot->ref == NULL) {
-                        slot->ref = calloc(1, sizeof(object_t));
+                        slot->ref = heap_alloc_object(klass);
+                    }else{
+                        slot->ref->klass = klass;
                     }
-                    slot->ref->klass = entry->klass;
                 }else if(entry->tag == RT_CONSTANT_MethodType) {
                     fprintf(stderr, "ldc method type not implemented\n");
                     abort();
@@ -1250,7 +1252,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 rt_cp_entry_t *entry = entries + index;
-                object_t *ref = heap_alloc_object(entry->klass);
+                object_t *ref = heap_alloc_object(resolve_class(thread, entry));
                 push(frame)->ref = ref;
                 frame->pc += 3;
                 break;
@@ -1304,8 +1306,12 @@ void exec_instruction(jvm_thread_t *thread) {
                     throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
                     return;
                 }
+                if(ref->type != OBJ_TYPE_EXCEPTION) {
+                    throw_error(thread, RUNTIME_ERROR_RuntimeException, "Invalid exception type");
+                    return;
+                }
                 // todo ref 必须是Throwable的子类
-                if(is_class_assignable(ref->klass, load_class("java/lang/Throwable", thread)) == 0) {
+                if(ref->catch_type > 0 && is_class_assignable(ref->klass, load_class("java/lang/Throwable", thread)) == 0) {
                     throw_error(thread, RUNTIME_ERROR_RuntimeException, "must sub class of java/lang/Throwable");
                     return;
                 }
@@ -1353,8 +1359,10 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_monitorexit: {   // 0xc3,       // 195
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                // todo 暂时不覆盖
+                pop(frame);
+                frame->pc++;
+                break;
             }
             // Control
             case OPCODE_goto: {   // 0xa7,       // 167 
@@ -1417,8 +1425,10 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_areturn: {   // 0xb0,       // 176 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                object_t *ref = pop(frame)->ref;
+                push(frame->invoker)->ref = ref;
+                pop_frame(thread);
+                return;
             }
             case OPCODE_return: {   // 0xb1,       // 177 
                 pop_frame(thread);
@@ -1434,8 +1444,16 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_ifnull: {   // 0xc6,      // 198 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                object_t *ref = pop(frame)->ref;
+                if(ref != NULL) {
+                    frame->pc += 3;
+                }else{
+                    u1 high = codes[frame->pc+1];
+                    u1 low = codes[frame->pc+2];
+                    int16_t index = (int16_t)((high << 8) | low);
+                    frame->pc += index;
+                }
+                break;
             }
             case OPCODE_ifnonnull: {   // 0xc7,      // 199 
                 object_t *ref = pop(frame)->ref;

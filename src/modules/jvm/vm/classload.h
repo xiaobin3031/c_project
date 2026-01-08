@@ -15,6 +15,4 @@ void link_class(jvm_thread_t *thread, class_t *class);
 
 void ensure_class_initialized(class_t *class, jvm_thread_t *thread);
 
-void load_jdk_class(project_t *project, jvm_thread_t *thread, const char *class_name);
-
 void bootstrap(project_t *project);

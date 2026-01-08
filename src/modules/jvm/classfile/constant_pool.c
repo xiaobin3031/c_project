@@ -209,10 +209,15 @@ cp_info_t *read_constant_pool_bytes(class_file_bytes_t *class_bytes, u2 pool_len
                 break;
             }
             case CONSTANT_MethodType:
-            case CONSTANT_String:
             case CONSTANT_Package:
             case CONSTANT_Module: {
                 info.info = read_bytes_bytes(class_bytes, 2);
+                break;
+            }
+            case CONSTANT_String: {
+                cp_string_t *cp_string = calloc(1, sizeof(cp_string_t));
+                cp_string->string_index = read_bytes_u2(class_bytes);
+                info.info = (u1*) cp_string;
                 break;
             }
             // todo 后续扩展更多tag
@@ -233,6 +238,10 @@ char *get_utf8(cp_info_t *cp_info) {
     return (char*)(cp_info->info + 2);
 }
 
+char *get_utf8_copy(cp_info_t *cp_info) {
+    char *utf8 = get_utf8(cp_info);
+    return strdup(utf8);
+}
 
 void constant_pool_free(void **cp_pools, u2 pool_size) {
     // todo free
