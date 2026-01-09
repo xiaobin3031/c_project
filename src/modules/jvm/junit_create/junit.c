@@ -30,3 +30,10 @@ test_field_t *test_field_new(const char *name, const char *type) {
     field->annos = arraylist_new(2);
     return field;
 }
+
+if_t *if_new(u2 pc) {
+    if_t *if_ = calloc(1, sizeof(if_t));
+    if_->pc = pc;
+    if_->taken = 0;
+    return if_;
+}

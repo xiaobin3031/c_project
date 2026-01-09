@@ -5,6 +5,7 @@
 #include "../../src/modules/jvm/project/project.h"
 #include "../../src/modules/jvm/utils/slots.h"
 #include "../../src/modules/jvm/runtime/class.h"
+#include "../../src/modules/jvm/junit_create/junit.h"
 #include <string.h>
 
 #define JDK_HOME "/mnt/c/Program Files/Java/jdk-17"
@@ -46,14 +47,20 @@ int test_slot_count() {
 
 int junit_test_class_clinit() {
 
-    class_file_t *cf = read_class_file("/Users/lixiaolin/Documents/xiaobin/杉杉/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller/EasyPayController.class");
+    class_file_t *cf = read_class_file("/mnt/e/code_new/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller/EasyPayController.class");
     class_t *class = define_class(cf);
+    return SUCCESS;
+}
+
+int junit_test_class_init() {
+    const char *file = "/mnt/e/code_new/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller";
+    create_junit_test_class(file, NULL, "com.shanshan");
     return SUCCESS;
 }
 
 test_case_t test_parse_class_cases[] = {
     // {"test slot count", test_slot_count},
-    // {"junit test class init", junit_test_class_init},
-    {"junit test class clinit", junit_test_class_clinit},
+    {"junit test class init", junit_test_class_init},
+    // {"junit test class clinit", junit_test_class_clinit},
     {NULL, NULL}
 };

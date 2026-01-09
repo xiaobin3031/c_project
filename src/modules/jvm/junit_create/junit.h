@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../../core/list/arraylist.h"
+#include "../utils/bytes.h"
 
 typedef struct {
     char *name;
@@ -27,6 +28,14 @@ typedef struct {
 
 } test_class_t;
 
+typedef struct {
+    // 当前if所在的pc
+    u2 pc;
+
+    // 已经处理的if逻辑值，0 进if逻辑，1 进else逻辑，2 跳出逻辑
+    int taken;
+} if_t;
+
 void create_junit_test_class(
     const char *src_class_dir,
     const char *dest_class_dir,
@@ -38,3 +47,7 @@ test_method_t *test_method_new(const char *name, const char *return_type);
 test_class_t *test_class_new(const char *package_name, const char *class_name);
 
 test_field_t *test_field_new(const char *name, const char *type);
+
+if_t *if_new(u2 pc);
+
+void print_test_class(test_class_t *test_class);

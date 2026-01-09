@@ -2,6 +2,7 @@
 #include "operand_stack.h"
 #include "local_vars.h"
 #include "class.h"
+#include "../../../core/list/arraylist.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -83,6 +84,7 @@ frame_t *frame_new(method_t *method, frame_t *invoker) {
         }
     }
     frame->method = method;
+    frame->ifs = arraylist_new(10);
     return frame;
 }
 

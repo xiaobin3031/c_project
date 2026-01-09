@@ -26,7 +26,9 @@ project_t *load_project(const char *root_path, const char *jdk_home) {
     char full_path[1024];
 
     project->root_path = strdup(root_path);
-    project->jdk_root = strdup(jdk_home);
+    if(jdk_home) {
+        project->jdk_root = strdup(jdk_home);
+    }
     project->class_file_source = arraylist_new(100);
 
     while((entry = readdir(dir)) != NULL) {

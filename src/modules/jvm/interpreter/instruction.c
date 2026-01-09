@@ -8,6 +8,8 @@
 #include "../utils/slots.h"
 #include "../runtime/native.h"
 #include "../runtime/jmemory.h"
+#include "../../../core/list/arraylist.h"
+#include "../junit_create/junit.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -188,6 +190,25 @@ static int is_assignable(class_t *from, class_t *to) {
         }
     }
     return is_class_assignable(from, to);
+}
+
+static if_t *find_if(frame_t *frame) {
+    arraylist *ifs = frame->ifs;
+    u2 pc = frame->pc;
+    if_t *if_ = NULL;
+    for(size_t i =0;i<ifs->size;i++) {
+        if_t *tmp = (if_t*)arraylist_get(ifs, i);
+        if(tmp->pc == pc) {
+            if_ = tmp;
+            break;
+        }
+    }
+
+    if(!if_) {
+        if_ = if_new(pc);
+        arraylist_add(ifs, if_);
+    }
+    return if_;
 }
 
 void exec_instruction(jvm_thread_t *thread) {
@@ -991,6 +1012,7 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifeq: {   // 0x99,       // 153 
                 int32_t val = pop_int(frame);
+                if_t *if_ = find_if(frame);
                 if(val == 0) {
                     go_to_by_index(frame);
                 }else{

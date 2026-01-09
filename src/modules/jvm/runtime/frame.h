@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../../core/list/arraylist.h"
 #include "../utils/bytes.h"
 #include "class.h"
 #include "run_error.h"
@@ -26,6 +27,9 @@ struct frame_t {
     jvm_thread_t *thread;
 
     method_t *method;
+
+    // if分支
+    arraylist *ifs;
 };
 
 struct jvm_thread_t {
