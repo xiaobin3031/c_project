@@ -10,6 +10,7 @@ test_method_t *test_method_new(const char *name, const char *return_type) {
     method->return_type = strdup(return_type);
     method->annos = arraylist_new(2);
     method->body = arraylist_new(10);
+    method->local_var_index = 1;
     return method;
 }
 
@@ -20,6 +21,7 @@ test_class_t *test_class_new(const char *package_name, const char *class_name) {
     test_class->imports = arraylist_new(10);
     test_class->methods = arraylist_new(10);
     test_class->fields = arraylist_new(10);
+    test_class->annos = arraylist_new(2);
     return test_class;
 }
 

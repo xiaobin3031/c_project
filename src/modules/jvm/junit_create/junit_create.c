@@ -7,6 +7,8 @@
 #include "../runtime/class.h"
 #include "../runtime/frame.h"
 #include "../interpreter/interpreter.h"
+#include "../utils/slots.h"
+#include "../vm/classload.h"
 #include <string.h>
 
 static char buffer[1024];
@@ -31,10 +33,108 @@ static void add_import(test_class_t *test_class, const char *type) {
     arraylist_add(test_class->imports, strdup(buffer));
 }
 
-static char *descriptor_to_type(const char *descriptor) {
-    const char *start = strrchr(descriptor, '/');
-    const char *end = strrchr(descriptor, ';');
-    return strndup(start + 1, end - start - 1);
+static void add_method_parameters(test_method_t *test_method, const char *descriptor) {
+    const char *ptr = descriptor;
+    ptr++;
+    char arg_buffer[200];
+    while(*ptr && *ptr != ')') {
+        sprintf(arg_buffer, "arg%d", test_method->local_var_index++);
+        var_decl_stmt_t *arg_decl = var_decl_stmt_new(NULL, arg_buffer, NULL);
+        expr_t *init;
+        switch(*ptr) {
+            case 'B': {
+                arg_decl->type = "byte";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_BYTE);
+                literal_expr->i = 1;
+                init->literal = literal_expr;
+                break;
+            }
+            case 'C': {
+                arg_decl->type = "char";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_CHAR);
+                literal_expr->c = 'a';
+                init->literal = literal_expr;
+                break;
+            }
+            case 'D': {
+                arg_decl->type = "double";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_DOUBLE);
+                literal_expr->d = 1.0;
+                init->literal = literal_expr;
+                break;
+            }
+            case 'F': {
+                arg_decl->type = "float";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_FLOAT);
+                literal_expr->f = 1.0f;
+                init->literal = literal_expr;
+                break;
+            }
+            case 'I': {
+                arg_decl->type = "int";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_INT);
+                literal_expr->i = 1L;
+                init->literal = literal_expr;
+                break;
+            }
+            case 'J': {
+                arg_decl->type = "long";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_LONG);
+                literal_expr->l = 1L;
+                init->literal = literal_expr;
+                break;
+            }
+            case 'S': {
+                arg_decl->type = "short";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_SHORT);
+                literal_expr->i = 1;
+                init->literal = literal_expr;
+                break;
+            }
+            case 'Z': {
+                arg_decl->type = "boolean";
+                init = expr_new(EXPR_LITERAL);
+                literal_expr_t *literal_expr = literal_expr_new(LIT_BOOL);
+                literal_expr->b = 1;
+                init->literal = literal_expr;
+                break;
+            }
+            case 'L': {
+                const char *end = strchr(ptr, ';');
+                const char *full_type = strndup(ptr + 1, end - ptr - 1);
+                char *simple_type = descriptor_to_simple_type(full_type);
+                arg_decl->type = strdup(simple_type);
+                if(strcmp("java/lang/String", full_type) == 0) {
+                    init = expr_new(EXPR_LITERAL);
+                    literal_expr_t *literal_expr = literal_expr_new(LIT_STRING);
+                    literal_expr->s = strdup("a");
+                    init->literal = literal_expr;
+                }else{
+                    init = expr_new(EXPR_METHOD_CALL);
+                    method_call_expr_t *method_call_expr = method_call_expr_new(NULL, simple_type);
+                    method_call_expr->method = "Util.newAndInit";
+                    sprintf(arg_buffer, "%s.class", simple_type);
+                    arraylist_add(method_call_expr->args, strdup(arg_buffer));
+                    init->method_call = method_call_expr;
+                }
+                ptr = end;
+                break;
+            }
+        }
+        arg_decl->init = init;
+        stmt_t *stmt = stmt_new(STMT_VAR_DECL);
+        stmt->var_decl = arg_decl;
+        arraylist_add(test_method->body, stmt);
+
+        ptr++;
+    }
 }
 
 void create_junit_test_class(
@@ -43,6 +143,7 @@ void create_junit_test_class(
     const char *new_package_name
 ) {
     project_t *project = load_project(src_class_dir, NULL);
+    char act_call_buffer[1024];
     for(int i=0;i<project->class_file_source->size;i++) {
         class_file_source_t *source = arraylist_get(project->class_file_source, i);
         if(source->source != CLASS_FILE_SOURCE_FILE) {
@@ -51,9 +152,18 @@ void create_junit_test_class(
 
         class_file_t *cf = read_class_file(source->path);
         class_t *klass = define_class(cf);
+        add_class(klass);
         if(cf) {
             test_class_t *test_class = test_class_new(new_package_name, klass->class_simple_name);
             add_common_imports(test_class);
+            arraylist_add(test_class->annos, "@ExtendWith(MockitoExtension.class)");
+
+            char *inject_field_name = strdup(klass->class_simple_name);
+            *inject_field_name += 32;
+            test_field_t *inject_field = test_field_new(inject_field_name, descriptor_to_simple_type(klass->class_name));
+            arraylist_add(inject_field->annos, "@InjectMocks");
+            arraylist_add(test_class->fields, inject_field);
+            add_import(test_class, descriptor_to_type(klass->class_name));
 
             // fields
             for(size_t i = 0; i < klass->fields_count; i++) {
@@ -61,16 +171,8 @@ void create_junit_test_class(
                 if(field->access_flags & FIELD_ACC_STATIC)
                     continue;
                 char *descriptor = field->descriptor;
-                char *desc = strdup(descriptor);
-                const char *end = strrchr(desc, ';');
-                char *ptr = desc;
-                while(*ptr) {
-                    if(*ptr == '/') *ptr = '.';
-                    ptr++;
-                }
-                add_import(test_class, strndup(desc + 1, end - desc - 1));
-                free(desc);
-                test_field_t *test_field = test_field_new(field->name, descriptor_to_type(descriptor));
+                add_import(test_class, descriptor_to_type(descriptor));
+                test_field_t *test_field = test_field_new(field->name, descriptor_to_simple_type(descriptor));
                 arraylist_add(test_field->annos, "@Mock(lenient = true)");
                 arraylist_add(test_class->fields, test_field);
             }
@@ -81,17 +183,38 @@ void create_junit_test_class(
                 method_t *method = &klass->methods[i];
                 if(method->access_flags & METHOD_ACC_PUBLIC && *method->name != '<') {
                     test_method_t *test_method = test_method_new(method->name, "void");
+                    add_method_parameters(test_method, method->descriptor);
+                    // act call
+                    int offset = 0;
+                    offset += sprintf(act_call_buffer + offset, "this.%s.%s(", inject_field_name, method->name);
+                    arraylist *body = test_method->body;
+                    for(size_t i = 0;i<body->size;i++) {
+                        stmt_t *stmt = arraylist_get(body, i);
+                        offset += sprintf(act_call_buffer + offset, "%s", stmt->var_decl->name);
+                        if(i < body->size- 1) {
+                            offset += sprintf(act_call_buffer + offset, ", ");
+                        }
+                    }
+                    offset += sprintf(act_call_buffer + offset, ")");
+                    act_call_buffer[offset] = '\0';
+                    test_method->act_call = strdup(act_call_buffer);
                     arraylist_add(test_method->annos, "@Test");
                     arraylist_add(test_class->methods, test_method);
 
                     // 增加方法体
                     frame_t *frame = frame_new(method, NULL);
+                    frame->test_class = test_class;
+                    frame->test_method = test_method;
                     push_frame(thread, frame);
-                    // interpret(thread);
+                    interpret(thread);
 
                     // 搜集结果
+                    printf("interpret end\n");
                 }
             }
+
+            free(inject_field_name);
+
             print_test_class(test_class);
 
             // 暂时只解析第一个文件
@@ -99,6 +222,65 @@ void create_junit_test_class(
         }
     }
 
+}
+
+static void print_expr(expr_t *expr) {
+    switch (expr->kind) {
+        case EXPR_LITERAL: {
+            literal_expr_t *literal_expr = (literal_expr_t *) expr;
+            switch(literal_expr->kind) {
+                case LIT_STRING: {
+                    printf("\"%s\"", literal_expr->s);
+                    break;
+                }
+                case LIT_NULL: {
+                    printf("null");
+                    break;
+                }
+                case LIT_BOOL: {
+                    printf("%s", literal_expr->b == 1 ? "true" : "false");
+                    break;
+                }
+                case LIT_CHAR: {
+                    printf("\'%c\'", literal_expr->c);
+                    break;
+                }
+                case LIT_SHORT:
+                case LIT_BYTE:
+                case LIT_INT: {
+                    printf("%d", literal_expr->i);
+                    break;
+                }
+                case LIT_LONG: {
+                    printf("%ld", literal_expr->l);
+                    break;
+                }
+                case LIT_FLOAT: {
+                    printf("%f", literal_expr->f);
+                    break;
+                }
+                case LIT_DOUBLE: {
+                    printf("%f", literal_expr->d);
+                    break;
+                }
+            }
+            break;
+        }
+        case EXPR_METHOD_CALL: {
+            method_call_expr_t *method_call_expr = expr->method_call;
+            printf("%s(", method_call_expr->method);
+            arraylist *args = method_call_expr->args;
+            for(size_t i = 0; i < args->size; i++) {
+                char *arg = arraylist_get(args, i);
+                printf("%s", arg);
+                if(i < args->size - 1) {
+                    printf(", ");
+                }
+            }
+            printf(")");
+            break;
+        }
+    }
 }
 
 void print_test_class(test_class_t *test_class) {
@@ -137,7 +319,26 @@ void print_test_class(test_class_t *test_class) {
             printf("    %s\n", anno);
         }
         printf("    public %s %s() {\n\n", method->return_type, method->name);
+        
+        // print body...
+        arraylist *body = method->body;
+        for(size_t j = 0;j<body->size;j++){ 
+            stmt_t *stmt = (stmt_t*) arraylist_get(body, j);
+            switch(stmt->kind) {
+                case STMT_VAR_DECL: {
+                    var_decl_stmt_t *var_decl = stmt->var_decl;
+                    printf("        %s %s", var_decl->type, var_decl->name);
+                    if(var_decl != NULL) {
+                        printf(" = ");
+                        print_expr(var_decl->init);
+                    }
+                    printf(";\n");
+                }
+            }
+        }
 
+        printf("\n");
+        printf("        %s;\n", method->act_call);
         printf("    }\n\n");
     }
     printf("}\n\n");

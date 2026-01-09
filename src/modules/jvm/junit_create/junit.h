@@ -14,11 +14,18 @@ typedef struct {
     char *return_type;
     arraylist *annos;
     arraylist *body;
+
+    // 拼凑变量的后缀
+    int local_var_index;
+    
+    // 实际方法调用
+    char *act_call;
 } test_method_t;
 
 typedef struct {
     char *package;
     arraylist *imports;
+    arraylist *annos;
 
     char *class_name;
 

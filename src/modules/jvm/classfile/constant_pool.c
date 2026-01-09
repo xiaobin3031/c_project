@@ -88,11 +88,17 @@ cp_info_t *read_constant_pool(FILE *file, u2 pool_len) {
                 break;
             }
             case CONSTANT_Integer: 
-            case CONSTANT_InterfaceMethodref:
             case CONSTANT_Dynamic:
             case CONSTANT_InvokeDynamic:
             case CONSTANT_Float: {
                 info.info = read_bytes(file, 4);
+                break;
+            }
+            case CONSTANT_InterfaceMethodref: {
+                cp_interfacemethodref_t *cp_imr = calloc(1, sizeof(cp_interfacemethodref_t));
+                cp_imr->class_index = read_u2(file);
+                cp_imr->name_and_type_index = read_u2(file);
+                info.info = (u1*) cp_imr;
                 break;
             }
             case CONSTANT_Long:
@@ -185,7 +191,6 @@ cp_info_t *read_constant_pool_bytes(class_file_bytes_t *class_bytes, u2 pool_len
                 break;
             }
             case CONSTANT_Integer: 
-            case CONSTANT_InterfaceMethodref:
             case CONSTANT_Dynamic:
             case CONSTANT_InvokeDynamic:
             case CONSTANT_Float: {

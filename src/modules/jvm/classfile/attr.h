@@ -52,6 +52,16 @@ typedef enum {
 } variable_info_tag;
 
 typedef struct {
+    u2 name_index;
+    u2 access_flags;
+} attr_file_param_t;
+
+typedef struct {
+    u1 parameters_count;
+    attr_file_param_t *parameters;
+} attr_file_method_param_t;
+
+typedef struct {
     u2 start_pc;
     u2 end_pc;
     u2 handler_pc;

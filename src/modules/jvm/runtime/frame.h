@@ -4,6 +4,7 @@
 #include "../utils/bytes.h"
 #include "class.h"
 #include "run_error.h"
+#include "../junit_create/junit.h"
 
 #include <stdint.h>
 
@@ -30,6 +31,9 @@ struct frame_t {
 
     // if分支
     arraylist *ifs;
+
+    test_class_t *test_class;
+    test_method_t *test_method;
 };
 
 struct jvm_thread_t {

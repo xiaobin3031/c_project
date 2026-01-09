@@ -145,6 +145,15 @@ class_t *define_class(class_file_t *class_file) {
                     entry->sym.descriptor = get_utf8_copy(&cp_pools[cp_nameandtype->descriptor_index]);
                     break;
                 }
+                case CONSTANT_InterfaceMethodref: {
+                    cp_interfacemethodref_t *cp_imr = (cp_interfacemethodref_t*)cp_info->info;
+                    cp_class_t *cp_class = get_cp_class(&cp_pools[cp_imr->class_index]);
+                    entry->sym.class_name = get_utf8_copy(&cp_pools[cp_class->name_index]);
+                    cp_nameandtype_t *cp_nameandtype = get_cp_nameandtype(&cp_pools[cp_imr->name_and_type_index]);
+                    entry->sym.name = get_utf8_copy(&cp_pools[cp_nameandtype->name_index]);
+                    entry->sym.descriptor = get_utf8_copy(&cp_pools[cp_nameandtype->descriptor_index]);
+                    break;
+                }
                 case CONSTANT_String: {
                     cp_string_t *cp_string = (cp_string_t*)cp_info->info;
                     char *string = get_utf8_copy(&cp_pools[cp_string->string_index]);

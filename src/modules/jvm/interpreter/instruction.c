@@ -35,9 +35,7 @@ class_t *resolve_class(jvm_thread_t *thread, rt_cp_entry_t *entry) {
     if(entry->resolved == 1) return entry->klass;
 
     printf("resolve class: %s\n", entry->sym.class_name);
-    if(entry->sym.class_name == NULL) {
-        printf("class not found: %s\n", entry->sym.class_name);
-    }
+    // 直接设置class
     class_t *target_class = load_class(entry->sym.class_name, thread);
     if(target_class->state == CLASS_ERRONEOUS) {
         return NULL;
@@ -76,27 +74,19 @@ static method_t *resolve_method(jvm_thread_t *thread, class_t *class, rt_cp_entr
     if(entry->resolved == 1) return entry->method;
 
     class_t *target_class = resolve_class(thread, entry);
-    while(target_class != NULL) {
-        ensure_class_initialized(target_class, thread);
-        if(target_class->state == CLASS_ERRONEOUS) {
-            return NULL;
-        }
+    method_t *method = calloc(1, sizeof(method_t));
+    method->access_flags = METHOD_ACC_PUBLIC;
+    method->name = strdup(entry->sym.name);
+    method->klass = target_class;
+    method->descriptor = strdup(entry->sym.descriptor);
+    method->arg_slot_count = slot_count_from_desciptor(method->descriptor);
+    char *end = strrchr(method->descriptor, ')');
+    method->return_slot_count = slot_count_from_desciptor(end + 1);
 
-        for(int i = 0; i < target_class->methods_count; i++) { 
-            method_t *method = &target_class->methods[i];
-            if(strcmp(method->name, entry->sym.name) == 0 && strcmp(method->descriptor, entry->sym.descriptor) == 0) {
-                entry->method = method;
-                entry->resolved = 1;
-                return method;
-            }
-        }
+    entry->method = method;
+    entry->resolved = 1;
 
-        // 查询父类
-        target_class = target_class->super;
-    }
-
-    fprintf(stderr, "cannot find method to run, %s %s\n", entry->sym.name, entry->sym.descriptor);
-    abort();
+    return method;
 }
 
 static field_t *find_static_field(jvm_thread_t *thread, rt_cp_entry_t *entry) {
@@ -111,42 +101,31 @@ static field_t *find_static_field(jvm_thread_t *thread, rt_cp_entry_t *entry) {
     return NULL;
 }
 
-static int run_method(jvm_thread_t *thread, u2 methodref_index, frame_t *cur_frame) {
+static int run_method(jvm_thread_t *thread, u2 methodref_index, frame_t *cur_frame, int is_static) {
     class_t *class = thread->current_frame->method->klass;
     rt_cp_entry_t *entry = &class->entries[methodref_index];
     method_t *call_method = resolve_method(thread, class, entry);
 
-    frame_t *run_frame = frame_new(call_method, cur_frame);
-    if(call_method->access_flags & METHOD_ACC_NATIVE) {
-        printf("native method: %s %s %s\n", 
-            call_method->klass->class_name, call_method->name, call_method->descriptor);
-        native_fn fn = find_native_method(call_method->klass->class_name, call_method->name, call_method->descriptor);
-        if(fn != NULL) {
-            // 让gc可以扫描到变量
-            push_frame(thread, run_frame);
-            fn(thread, run_frame);
-            char *descriptor = call_method->descriptor;
-            if(call_method->return_slot_count > 0) {
-                // 有返回值
-                slot_t args[call_method->return_slot_count];
-                for(int i=0;i<call_method->return_slot_count;i++) {
-                    slot_t *ret = pop(run_frame);
-                    args[i].bits = ret->bits;
-                    args[i].ref = ret->ref;
-                }
-                for(int i=call_method->return_slot_count-1;i>=0;i--) {
-                    slot_t *slot = push(cur_frame);
-                    slot->bits = args[i].bits;
-                    slot->ref = args[i].ref;
-                }
-            }
-            pop_frame(thread);
-        }
+    // 只执行private，其他方法根据是否需要mock来判断
+    if(call_method->access_flags & METHOD_ACC_PRIVATE) {
+        frame_t *run_frame = frame_new(call_method, cur_frame);
+        push_frame(thread, run_frame);
         return 0;
     }else{
-        printf("run method: %s %s\n", call_method->name, call_method->descriptor);
-        push_frame(thread, run_frame);
-        return 1;
+        printf("invoke method: %s.%s%s\n", call_method->klass->class_name, call_method->name, call_method->descriptor);
+        // 因为不是static的
+        if(!is_static) pop(cur_frame);
+        if(call_method->arg_slot_count > 0) {
+            for(int i = 0; i < call_method->arg_slot_count; i++) {
+                pop(cur_frame);
+            }
+        }
+        if(call_method->return_slot_count > 0) {
+            for(int i = 0; i < call_method->return_slot_count; i++) {
+                push(cur_frame);
+            }
+        }
+        return 0;
     }
 }
 
@@ -1242,7 +1221,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
-                if(run_method(thread, index, frame) == 1) return;
+                if(run_method(thread, index, frame, 0) == 1) return;
                 break;
             }
             case OPCODE_invokespecial: {   // 0xb7,       // 183
@@ -1250,7 +1229,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u2 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
-                if(run_method(thread, index, frame) == 1) return;
+                if(run_method(thread, index, frame, 0) == 1) return;
                 break;
             }
             case OPCODE_invokestatic: {   // 0xb8,       // 184
@@ -1258,12 +1237,17 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
-                if(run_method(thread, index, frame) == 1) return;
+                if(run_method(thread, index, frame, 1) == 1) return;
                 break;
             }
             case OPCODE_invokeinterface: {   // 0xb9,       // 185
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                u2 high = codes[frame->pc+1];
+                u1 low = codes[frame->pc+2];
+                u2 index = (high << 8) | low;
+                rt_cp_entry_t *entry = entries + index;
+                if(run_method(thread, index, frame, 0) == 1) return;
+                frame->pc += 5;
+                break;
             }
             case OPCODE_invokedynamic: {   // 0xba,       // 186
             fprintf(stderr, "unimpleted opcode: %d\n", opcode);
@@ -1448,7 +1432,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_areturn: {   // 0xb0,       // 176 
                 object_t *ref = pop(frame)->ref;
-                push(frame->invoker)->ref = ref;
+                // 有调用者，才把返回值传回去，不然就是最顶层的frame，不需要返回值
+                if(frame->invoker) push(frame->invoker)->ref = ref;
                 pop_frame(thread);
                 return;
             }

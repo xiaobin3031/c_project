@@ -5,8 +5,8 @@
 
 var_decl_stmt_t *var_decl_stmt_new( const char *type, const char *name, expr_t *init) {
     var_decl_stmt_t *stmt = calloc(1, sizeof( var_decl_stmt_t));
-    stmt->type = strdup(type);
-    stmt->name = strdup(name);
+    if(type) stmt->type = strdup(type);
+    if(name) stmt->name = strdup(name);
     stmt->init = init;
     return stmt;
 }
@@ -19,7 +19,7 @@ expr_stmt_t *expr_stmt_new( expr_t *expr) {
 
 assert_stmt_t *assert_stmt_new(  const char *assert_method) {
     assert_stmt_t *stmt = calloc(1, sizeof( assert_stmt_t));
-    stmt->assert_method = strdup( assert_method);
+    if(assert_method) stmt->assert_method = strdup( assert_method);
     stmt->args = arraylist_new(2);
     return stmt;
 }

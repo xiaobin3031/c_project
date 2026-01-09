@@ -55,6 +55,11 @@ typedef struct {
 } cp_methodref_t;
 
 typedef struct {
+    u2 class_index;
+    u2 name_and_type_index;
+} cp_interfacemethodref_t;
+
+typedef struct {
     u2 string_index;
 } cp_string_t;
 

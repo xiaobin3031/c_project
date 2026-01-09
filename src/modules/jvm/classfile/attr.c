@@ -24,6 +24,7 @@ attribute_file_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools
         attr.attribute_length = read_u4(file);
         if(attr.attribute_length > 0 
             && strcmp(attr_name, "Code") != 0
+            && strcmp(attr_name, "MethodParameters") != 0
             ) {
             attr.info = read_bytes(file, attr.attribute_length);
         }
@@ -93,6 +94,17 @@ attribute_file_t *read_attributes(FILE *file, u2 attr_count, cp_info_t *cp_pools
             attr.tag = ATTR_LOCAL_VARIABLE_TYPE_TABLE;
         }else if(strcmp(attr_name, "MethodParameters") == 0) {
             attr.tag = ATTR_METHOD_PARAMETERS;
+            attr_file_method_param_t *method_params = calloc(1, sizeof(attr_file_method_param_t));
+            method_params->parameters_count = read_u2(file);
+            if(method_params->parameters_count > 0) {
+                method_params->parameters = calloc(method_params->parameters_count, sizeof(attr_file_param_t));
+                for(int i = 0; i < method_params->parameters_count; i++) {
+                    attr_file_param_t *param = &method_params->parameters[i];
+                    param->name_index = read_u2(file);
+                    param->access_flags = read_u2(file);
+                }
+
+            }
         }else if(strcmp(attr_name, "EnclosingMethod") == 0) {
             attr.tag = ATTR_ENCLOSING_METHOD;
         } else if(strcmp(attr_name, "Synthetic") == 0) {

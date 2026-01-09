@@ -82,6 +82,8 @@ frame_t *frame_new(method_t *method, frame_t *invoker) {
             local->bits = stack->bits;
             local->ref = stack->ref;
         }
+        frame->test_class = invoker->test_class;
+        frame->test_method = invoker->test_method;
     }
     frame->method = method;
     frame->ifs = arraylist_new(10);

@@ -8,6 +8,7 @@
 #include "../project/project.h"
 #include "../../../core/list/arraylist.h"
 #include "../utils/miniz.h"
+#include "../utils/slots.h"
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
@@ -30,6 +31,9 @@ static const char* atype_to_descriptor(u1 atype) {
 }
 
 static class_t *find_class(const char *class_name) {
+    if(g_class_list == NULL) {
+        g_class_list = arraylist_new(100);
+    }
     class_t *class = NULL;
     for(size_t i=0;i<g_class_list->size;i++) {
         class_t *tmp = (class_t*)arraylist_get(g_class_list, i);
@@ -56,43 +60,11 @@ class_t *load_class(const char *class_name, jvm_thread_t *thread) {
     // load from cache
     class_t *class = find_class(class_name);
     if(class == NULL) {
-        // printf("load class name: %s, g_class_list.size: %ld\n", class_file, g_class_list->size);
-        class_file_source_t *class_file_source = NULL;
-        arraylist *list = g_project->class_file_source;
-        for(size_t i = 0; i < list->size; i++) {
-            class_file_source_t *source = list->values[i];
-            if(strcmp(source->name, class_name) == 0) {
-                class_file_source = source;
-                break;
-            }
-        }
-        if(class_file_source != NULL) {
-            class_file_t *class_file = NULL;
-            if(class_file_source->source == CLASS_FILE_SOURCE_FILE) {
-                class_file = read_class_file(class_file_source->path);
-            } else if(class_file_source->source == CLASS_FILE_SOURCE_JMOD) {
-                size_t size;
-                void* data = mz_zip_reader_extract_to_heap(g_project->jmod_base_zip, class_file_source->index, &size, 0);
-                class_file_bytes_t *class_bytes = class_bytes_new((u1*)data, size);
-                class_file = read_by_class_bytes(class_bytes);
-                free(class_bytes);
-                free(data);
-            }
-            class = define_class(class_file);
-            if(class) {
-                arraylist_add(g_class_list, class);
-                class->state = CLASS_LOADED;
-            }
-        }
-    }
-    if(class == NULL){
-        fprintf(stderr, "ClassFormatError: %s\n", class_name);
-        abort();
-    }
-    if(class->state == CLASS_ERRONEOUS) {
-        thread->error = error_new(RUNTIME_ERROR_NoClassDefFoundError, "Class is in erroneous state");
-    }else{
-        link_class(thread, class);
+        class = calloc(1, sizeof(class_t));
+        class->class_name = strdup(class_name);
+        class->class_simple_name = descriptor_to_simple_type(class_name);
+        arraylist_add(g_class_list, class);
+        class->state = CLASS_LOADED;
     }
     
     return class;
@@ -273,5 +245,11 @@ void bootstrap(project_t *project) {
 
     for (int i = 0; white_classes[i] != NULL; i++) {
         load_class(white_classes[i], main_thread);
+    }
+}
+
+void add_class(class_t *klass) {
+    if(find_class(klass->class_name) == NULL) {
+        arraylist_add(g_class_list, klass);
     }
 }

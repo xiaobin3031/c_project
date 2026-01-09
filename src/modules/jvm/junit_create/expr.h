@@ -12,11 +12,16 @@ typedef enum {
 } expr_kind_e;
 
 typedef enum {
+    LIT_SHORT,
     LIT_INT,
     LIT_LONG,
     LIT_BOOL,
+    LIT_BYTE,
     LIT_STRING,
     LIT_NULL,
+    LIT_FLOAT,
+    LIT_DOUBLE,
+    LIT_CHAR,
 } literal_kind_e;
 
 typedef struct {
@@ -26,12 +31,18 @@ typedef struct {
         int i;
         long l;
         int b;
+        char c;
         char *s;
+        double d;
+        float f;
     };
 } literal_expr_t;
 
 typedef struct {
+    char *type;
     char *name;
+
+    expr_t *init;
 } var_expr_t;
 
 typedef struct {
@@ -44,9 +55,9 @@ struct expr_t {
 
     expr_kind_e kind;
     union {
-        literal_expr_t literal;
-        var_expr_t var;
-        method_call_expr_t method_call;
+        literal_expr_t *literal;
+        var_expr_t *var;
+        method_call_expr_t *method_call;
     };
 };
 

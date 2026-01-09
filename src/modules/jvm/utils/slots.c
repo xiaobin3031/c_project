@@ -1,5 +1,6 @@
 #include "slots.h"
 #include "bytes.h"
+#include <string.h>
 
 u2 slot_count_from_desciptor(char *descriptor) {
     char *ptr = descriptor;
@@ -36,4 +37,26 @@ u2 slot_count_from_desciptor(char *descriptor) {
         }
     }
     return arg_count;
+}
+
+char *descriptor_to_simple_type(const char *descriptor) {
+    const char *start = strrchr(descriptor, '/');
+    const char *end = strrchr(descriptor, ';');
+    return strndup(start + 1, end - start - 1);
+}
+
+char *descriptor_to_type(const char *descriptor) {
+    char *desc = strdup(descriptor);
+    if(*desc == 'L') {
+        desc++;
+    }
+    char *ptr = desc;
+    while(*ptr && *ptr != ';') {
+        if(*ptr == '/') {
+            *ptr = '.';
+        }
+        ptr++;
+    }
+    *ptr = '\0';
+    return desc;
 }
