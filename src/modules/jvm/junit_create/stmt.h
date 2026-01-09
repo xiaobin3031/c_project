@@ -5,8 +5,8 @@
 
 typedef enum {
     STMT_VAR_DECL,
-    STMR_EXPR,
-    STMR_ASSERT,
+    STMT_EXPR,
+    STMT_ASSERT,
 } stmt_kind_e;
 
 typedef struct {

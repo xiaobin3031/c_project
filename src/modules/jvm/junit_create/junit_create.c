@@ -6,9 +6,12 @@
 #include "../../../core/list/arraylist.h"
 #include "../runtime/class.h"
 #include "../runtime/frame.h"
+#include "../runtime/local_vars.h"
 #include "../interpreter/interpreter.h"
 #include "../utils/slots.h"
 #include "../vm/classload.h"
+#include "stmt.h"
+#include "expr.h"
 #include <string.h>
 
 static char buffer[1024];
@@ -182,27 +185,29 @@ void create_junit_test_class(
             for(size_t i = 0; i < klass->methods_count; i++) { 
                 method_t *method = &klass->methods[i];
                 if(method->access_flags & METHOD_ACC_PUBLIC && *method->name != '<') {
+                    sprintf(act_call_buffer, "this.%s.%s", inject_field_name, method->name);
+                    method_call_expr_t *act_call_expr = method_call_expr_new(NULL, act_call_buffer);
                     test_method_t *test_method = test_method_new(method->name, "void");
                     add_method_parameters(test_method, method->descriptor);
+                    frame_t *frame = frame_new(method, NULL);
                     // act call
-                    int offset = 0;
-                    offset += sprintf(act_call_buffer + offset, "this.%s.%s(", inject_field_name, method->name);
                     arraylist *body = test_method->body;
                     for(size_t i = 0;i<body->size;i++) {
                         stmt_t *stmt = arraylist_get(body, i);
-                        offset += sprintf(act_call_buffer + offset, "%s", stmt->var_decl->name);
-                        if(i < body->size- 1) {
-                            offset += sprintf(act_call_buffer + offset, ", ");
-                        }
+                        arraylist_add(act_call_expr->args, strdup(stmt->var_decl->name));
+                        slot_t *slot = get_local(frame, i + 1);
+                        test_field_t *test_field = test_field_new(stmt->var_decl->name, stmt->var_decl->type);
+                        slot->test_field = test_field;
                     }
-                    offset += sprintf(act_call_buffer + offset, ")");
-                    act_call_buffer[offset] = '\0';
-                    test_method->act_call = strdup(act_call_buffer);
+                    stmt_t *act_call_stmt = stmt_new(STMT_EXPR);
+                    expr_t *act_expr = expr_new(EXPR_METHOD_CALL);
+                    act_expr->method_call = act_call_expr;
+                    act_call_stmt->expr = expr_stmt_new(act_expr);
+                    test_method->act_call = act_call_stmt;
                     arraylist_add(test_method->annos, "@Test");
                     arraylist_add(test_class->methods, test_method);
 
                     // 增加方法体
-                    frame_t *frame = frame_new(method, NULL);
                     frame->test_class = test_class;
                     frame->test_method = test_method;
                     push_frame(thread, frame);
@@ -210,12 +215,13 @@ void create_junit_test_class(
 
                     // 搜集结果
                     printf("interpret end\n");
+                    break;
                 }
             }
 
             free(inject_field_name);
 
-            print_test_class(test_class);
+            // print_test_class(test_class);
 
             // 暂时只解析第一个文件
             break;
@@ -283,6 +289,27 @@ static void print_expr(expr_t *expr) {
     }
 }
 
+static void print_stmt(stmt_t *stmt) {
+    switch(stmt->kind) {
+        case STMT_VAR_DECL: {
+            var_decl_stmt_t *var_decl = stmt->var_decl;
+            printf("%s %s", var_decl->type, var_decl->name);
+            if(var_decl != NULL) {
+                printf(" = ");
+                print_expr(var_decl->init);
+            }
+            printf(";");
+            break;
+        }
+        case STMT_EXPR: {
+            expr_stmt_t *expr_stmt = stmt->expr;
+            print_expr(expr_stmt->expr);
+            printf(";");
+            break;
+        }
+    }
+}
+
 void print_test_class(test_class_t *test_class) {
     printf("package %s;\n\n", test_class->package);
     arraylist *imports = test_class->imports;
@@ -297,49 +324,49 @@ void print_test_class(test_class_t *test_class) {
     printf("public class Test%s {\n\n", test_class->class_name);
     arraylist *fields = test_class->fields;
 
+    int tabs = 1;
     // fields
     for(size_t i = 0;i<fields->size;i++) {
         test_field_t *field = (test_field_t*) arraylist_get(fields, i);
         arraylist *annos = field->annos;
         for(size_t j = 0;j<annos->size;j++) {
             char *anno = (char*) arraylist_get(annos, j);
-            printf("    %s\n", anno);
+            printf("%*s%s\n", tabs * 4, "", anno);
         }
-        printf("    private %s %s;\n", field->type, field->name);
+        printf("%*s%s %s %s;\n", tabs * 4, "", "private", field->type, field->name);
     }
     printf("\n");
 
     // methods
     arraylist *methods = test_class->methods;
     for(size_t i = 0;i<methods->size;i++) {
+        tabs = 1;
         test_method_t *method = (test_method_t*) arraylist_get(methods, i);
         arraylist *annos = method->annos;
         for(size_t j = 0;j<annos->size;j++) {
             char *anno = (char*) arraylist_get(annos, j);
-            printf("    %s\n", anno);
+            printf("%*s%s\n", tabs * 4, "", anno);
         }
-        printf("    public %s %s() {\n\n", method->return_type, method->name);
+        printf("%*s%s %s %s() {\n\n", tabs * 4, "", "public", method->return_type, method->name);
         
         // print body...
         arraylist *body = method->body;
+        tabs++;
         for(size_t j = 0;j<body->size;j++){ 
             stmt_t *stmt = (stmt_t*) arraylist_get(body, j);
-            switch(stmt->kind) {
-                case STMT_VAR_DECL: {
-                    var_decl_stmt_t *var_decl = stmt->var_decl;
-                    printf("        %s %s", var_decl->type, var_decl->name);
-                    if(var_decl != NULL) {
-                        printf(" = ");
-                        print_expr(var_decl->init);
-                    }
-                    printf(";\n");
-                }
-            }
+            printf("%*s", tabs * 4, "");
+            print_stmt(stmt);
+            printf("\n");
         }
 
         printf("\n");
-        printf("        %s;\n", method->act_call);
-        printf("    }\n\n");
+        printf("%*s", tabs * 4, "");
+        print_stmt(method->act_call);
+
+        printf("\n");
+
+        tabs--;
+        printf("%*s%s\n\n", tabs * 4, "", "}");
     }
     printf("}\n\n");
 }

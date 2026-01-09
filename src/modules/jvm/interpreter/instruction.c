@@ -202,7 +202,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     while(frame->pc < code_length) {
         opcode = codes[frame->pc];
-        printf("opcode: %d\n", opcode);
+        // printf("opcode: %d\n", opcode);
         switch(opcode) {
             // Constants
             case OPCODE_nop: {   // 0x00,  // 00 
@@ -990,8 +990,10 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_ifeq: {   // 0x99,       // 153 
-                int32_t val = pop_int(frame);
+                slot_t *slot = pop(frame);
+                int32_t val = (int32_t)slot->bits;
                 if_t *if_ = find_if(frame);
+                printf("opcode: ifeq  %d\n", val);
                 if(val == 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1000,7 +1002,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_ifne: {   // 0x9a,       // 154 
-                int32_t val = pop_int(frame);
+                slot_t *slot = pop(frame);
+                int32_t val = (int32_t)slot->bits;
+                printf("opcode: ifne  %d\n", val);
                 if(val != 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1009,7 +1013,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_iflt: {   // 0x9b,       // 155 
-                int32_t val = pop_int(frame);
+                slot_t *slot = pop(frame);
+                int32_t val = (int32_t)slot->bits;
+                printf("opcode: iflt   %d\n", val);
                 if(val < 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1018,7 +1024,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_ifge: {   // 0x9c,       // 156 
-                int32_t val = pop_int(frame);
+                slot_t *slot = pop(frame);
+                int32_t val = (int32_t)slot->bits;
+                printf("opcode: ifge    %d\n", val);
                 if(val >= 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1027,7 +1035,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_ifgt: {   // 0x9d,       // 157 
-                int32_t val = pop_int(frame);
+                slot_t *slot = pop(frame);
+                int32_t val = (int32_t)slot->bits;
+                printf("opcode: ifgt    %d\n", val);
                 if(val > 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1036,7 +1046,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_ifle: {   // 0x9e,       // 158 
-                int32_t val = pop_int(frame);
+                slot_t *slot = pop(frame);
+                int32_t val = (int32_t)slot->bits;
+                printf("opcode: ifle    %d\n", val);
                 if(val <= 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1045,8 +1057,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_if_icmpeq: {   // 0x9f,       // 159 
-                int32_t v2 = pop_int(frame);
-                int32_t v1 = pop_int(frame);
+                slot_t *slot2 = pop(frame);
+                int32_t v2 = (int32_t)slot2->bits;
+                slot_t *slot1 = pop(frame);
+                int32_t v1 = (int32_t)slot1->bits;
+                printf("opcode: if_icmpeq   %d\n", v1 == v2 ? 1 : 0);
                 if(v1 == v2) {
                     go_to_by_index(frame);
                 }else{
@@ -1055,8 +1070,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_if_icmpne: {   // 0xa0,       // 160 
-                int32_t v2 = pop_int(frame);
-                int32_t v1 = pop_int(frame);
+                slot_t *slot2 = pop(frame);
+                int32_t v2 = (int32_t)slot2->bits;
+                slot_t *slot1 = pop(frame);
+                int32_t v1 = (int32_t)slot1->bits;
+                printf("opcode: if_icmpne    %d\n", v1 != v2 ? 1 : 0);
                 if(v1 != v2) {
                     go_to_by_index(frame);
                 }else{
@@ -1065,8 +1083,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_if_icmplt: {   // 0xa1,       // 161 
-                int32_t v2 = pop_int(frame);
-                int32_t v1 = pop_int(frame);
+                slot_t *slot2 = pop(frame);
+                int32_t v2 = (int32_t)slot2->bits;
+                slot_t *slot1 = pop(frame);
+                int32_t v1 = (int32_t)slot1->bits;
+                printf("opcode: if_icmplt    %d\n", v1 < v2 ? 1 : 0);
                 if(v1 < v2) {
                     go_to_by_index(frame);
                 }else{
@@ -1075,8 +1096,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_if_icmpge: {   // 0xa2,       // 162 
-                int32_t v2 = pop_int(frame);
-                int32_t v1 = pop_int(frame);
+                slot_t *slot2 = pop(frame);
+                int32_t v2 = (int32_t)slot2->bits;
+                slot_t *slot1 = pop(frame);
+                int32_t v1 = (int32_t)slot1->bits;
+                printf("opcode: if_icmpge    %d\n", v1 >= v2 ? 1 : 0);
                 if(v1 >= v2) {
                     go_to_by_index(frame);
                 }else{
@@ -1085,8 +1109,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_if_icmpgt: {   // 0xa3,       // 163 
-                int32_t v2 = pop_int(frame);
-                int32_t v1 = pop_int(frame);
+                slot_t *slot2 = pop(frame);
+                int32_t v2 = (int32_t)slot2->bits;
+                slot_t *slot1 = pop(frame);
+                int32_t v1 = (int32_t)slot1->bits;
+                printf("opcode: if_icmpgt    %d\n", v1 > v2 ? 1 : 0);
                 if(v1 > v2) {
                     go_to_by_index(frame);
                 }else{
@@ -1095,8 +1122,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 break;
             }
             case OPCODE_if_icmple: {   // 0xa4,       // 164 
-                int32_t v2 = pop_int(frame);
-                int32_t v1 = pop_int(frame);
+                slot_t *slot2 = pop(frame);
+                int32_t v2 = (int32_t)slot2->bits;
+                slot_t *slot1 = pop(frame);
+                int32_t v1 = (int32_t)slot1->bits;
+                printf("opcode: if_icmple     %d\n", v1 <= v2 ? 1 : 0);
                 if(v1 <= v2) {
                     go_to_by_index(frame);
                 }else{
@@ -1108,8 +1138,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 high = codes[frame->pc+1];
                 u1 low = codes[frame->pc+2];
                 int16_t index = (int16_t)((high << 8) | low);
-                object_t *obj2 = pop(frame)->ref;
-                object_t *obj1 = pop(frame)->ref;
+                slot_t *slot2 = pop(frame);
+                slot_t *slot1 = pop(frame);
+                object_t *obj2 = slot2->ref;
+                object_t *obj1 = slot1->ref;
+                printf("opcode: if_acmpeq     %d\n", obj1 == obj2 ? 1 : 0);
                 if(obj1 == obj2) {
                     frame->pc += index;
                 }else{
@@ -1121,8 +1154,11 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 high = codes[frame->pc+1];
                 u1 low = codes[frame->pc+2];
                 int16_t index = (int16_t)((high << 8) | low);
-                object_t *obj2 = pop(frame)->ref;
-                object_t *obj1 = pop(frame)->ref;
+                slot_t *slot2 = pop(frame);
+                slot_t *slot1 = pop(frame);
+                object_t *obj2 = slot2->ref;
+                object_t *obj1 = slot1->ref;
+                printf("opcode: if_acmpne     %d\n", obj1 != obj2 ? 1 : 0);
                 if(obj1 != obj2) {
                     frame->pc += index;
                 }else{
@@ -1452,6 +1488,7 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifnull: {   // 0xc6,      // 198 
                 object_t *ref = pop(frame)->ref;
+                printf("opcode: ifnull     %d\n", ref == NULL ? 1 : 0);
                 if(ref != NULL) {
                     frame->pc += 3;
                 }else{
@@ -1464,6 +1501,7 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifnonnull: {   // 0xc7,      // 199 
                 object_t *ref = pop(frame)->ref;
+                printf("opcode: ifnonnull      %d\n", ref != NULL ? 1 : 0);
                 if(ref == NULL) {
                     frame->pc += 3;
                 }else{

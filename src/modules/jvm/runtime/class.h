@@ -2,6 +2,7 @@
 
 #include "../utils/bytes.h"
 #include "../classfile/class_reader.h"
+#include "../junit_create/junit.h"
 #include <pthread.h>
 
 typedef struct class_t class_t;
@@ -178,6 +179,7 @@ struct object_t {
 struct slot_t {
     uint32_t bits;
     object_t *ref;
+    test_field_t *test_field;
 };
 
 char *resolve_class_name(class_file_t *cf);

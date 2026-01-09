@@ -2,6 +2,7 @@
 
 #include "../../../core/list/arraylist.h"
 #include "../utils/bytes.h"
+#include "stmt.h"
 
 typedef struct {
     char *name;
@@ -19,7 +20,7 @@ typedef struct {
     int local_var_index;
     
     // 实际方法调用
-    char *act_call;
+    stmt_t *act_call;
 } test_method_t;
 
 typedef struct {
