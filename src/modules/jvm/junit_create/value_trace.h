@@ -3,9 +3,13 @@
 #include <stdlib.h>
 #include "../runtime/class.h"
 
+typedef void (*value_trace_back_fn)(value_trace_t *vt, test_method_t *method);
+
 typedef struct field_t field_t;
 typedef struct method_t method_t;
 typedef struct value_trace_t value_trace_t;
+typedef struct test_method_t test_method_t;
+typedef struct vt_back_stmt_t vt_back_stmt_t;
 
 typedef enum {
     VT_CONST,   // 常量
@@ -17,6 +21,13 @@ typedef enum {
     VT_UNKNOWN
 } vt_kind_e;
 
+struct vt_back_stmt_t {
+    char *class_name;
+    char *method_name;
+    char *descriptor;
+
+    value_trace_back_fn fn;
+};
 
 struct value_trace_t { 
     vt_kind_e kind;
@@ -68,3 +79,9 @@ value_trace_t *vt_unknown_new();
 value_trace_t *vt_compare_new(int opcode, value_trace_t *left, value_trace_t *right);
 
 value_trace_t *vt_new(vt_kind_e kind);
+
+void print_value_trace(value_trace_t *vt);
+
+void register_vt_back_stmts();
+
+void value_trace_back_code(value_trace_t *vt, test_method_t *method);

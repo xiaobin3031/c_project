@@ -4,13 +4,15 @@
 #include "../utils/bytes.h"
 #include "stmt.h"
 
+typedef struct test_method_t test_method_t;
+
 typedef struct {
     char *name;
     char *type;
     arraylist *annos;
 } test_field_t;
 
-typedef struct {
+struct test_method_t {
     char *name;
     char *return_type;
     arraylist *annos;
@@ -21,7 +23,7 @@ typedef struct {
     
     // 实际方法调用
     stmt_t *act_call;
-} test_method_t;
+};
 
 typedef struct {
     char *package;

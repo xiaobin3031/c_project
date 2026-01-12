@@ -1006,7 +1006,9 @@ void exec_instruction(jvm_thread_t *thread) {
                 slot_t *slot = pop(frame);
                 int32_t val = (int32_t)slot->bits;
                 if_t *if_ = find_if(frame);
-                printf("opcode: ifeq  %d\n", val);
+                val = 1;
+                printf("opcode: ifeq  %d value trace:\n", val);
+                print_value_trace(slot->vt);
                 if(val == 0) {
                     go_to_by_index(frame);
                 }else{

@@ -53,7 +53,8 @@ int junit_test_class_clinit() {
 }
 
 int junit_test_class_init() {
-    const char *file = "/mnt/e/code_new/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller";
+    // const char *file = "/mnt/e/code_new/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller";
+    const char *file = "/Users/lixiaolin/Documents/xiaobin/杉杉/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller";
     create_junit_test_class(file, NULL, "com.shanshan");
     return SUCCESS;
 }

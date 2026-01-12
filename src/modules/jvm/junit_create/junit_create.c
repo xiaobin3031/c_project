@@ -7,6 +7,7 @@
 #include "../runtime/class.h"
 #include "../runtime/frame.h"
 #include "../runtime/local_vars.h"
+#include "../runtime/operand_stack.h"
 #include "../interpreter/interpreter.h"
 #include "../utils/slots.h"
 #include "../vm/classload.h"
@@ -156,6 +157,7 @@ void create_junit_test_class(
         class_file_t *cf = read_class_file(source->path);
         class_t *klass = define_class(cf);
         add_class(klass);
+        if(strcmp(klass->class_name, "com/shanshan/order/controller/EasyPayController") != 0) continue;
         if(cf) {
             test_class_t *test_class = test_class_new(new_package_name, klass->class_simple_name);
             add_common_imports(test_class);
@@ -212,6 +214,10 @@ void create_junit_test_class(
                     frame->test_method = test_method;
                     push_frame(thread, frame);
                     interpret(thread);
+
+                    slot_t *slot = &frame->operand_stack[0];
+                    printf("\n\nprint value trace\n");
+                    print_value_trace(slot->vt);
 
                     // 搜集结果
                     printf("interpret end\n");
