@@ -3,11 +3,15 @@
 #include "../utils/bytes.h"
 #include "../classfile/class_reader.h"
 #include "../junit_create/junit.h"
+#include "../junit_create/value_trace.h"
 #include <pthread.h>
 
 typedef struct class_t class_t;
 typedef struct slot_t slot_t;
 typedef struct object_t object_t;
+typedef struct field_t field_t;
+typedef struct method_t method_t;
+typedef struct value_trace_t value_trace_t;
 
 enum class_state {
     CLASS_UNLOADED = 0,
@@ -60,7 +64,7 @@ typedef struct {
     u2 catch_type;
 } rt_exception_table_t;
 
-typedef struct {
+struct method_t {
     u2 access_flags;
     char *name;
     char *descriptor;
@@ -75,9 +79,9 @@ typedef struct {
     u2 return_slot_count;
 
     class_t *klass;
-} method_t;
+};
 
-typedef struct {
+struct field_t {
     u2 access_flags;
     char *name;
     char *descriptor;
@@ -85,7 +89,7 @@ typedef struct {
     u2 slot_id;
     u2 slot_count;
     slot_t *slots;
-} field_t;
+} ;
 
 typedef struct {
     u1 tag;
@@ -180,6 +184,8 @@ struct slot_t {
     uint32_t bits;
     object_t *ref;
     test_field_t *test_field;
+
+    value_trace_t *vt;
 };
 
 char *resolve_class_name(class_file_t *cf);

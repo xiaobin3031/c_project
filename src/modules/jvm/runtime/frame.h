@@ -5,6 +5,7 @@
 #include "class.h"
 #include "run_error.h"
 #include "../junit_create/junit.h"
+#include "../junit_create/value_trace.h"
 
 #include <stdint.h>
 

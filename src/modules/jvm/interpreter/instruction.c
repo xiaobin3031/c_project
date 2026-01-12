@@ -34,7 +34,7 @@ static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char 
 class_t *resolve_class(jvm_thread_t *thread, rt_cp_entry_t *entry) {
     if(entry->resolved == 1) return entry->klass;
 
-    printf("resolve class: %s\n", entry->sym.class_name);
+    // printf("resolve class: %s\n", entry->sym.class_name);
     // 直接设置class
     class_t *target_class = load_class(entry->sym.class_name, thread);
     if(target_class->state == CLASS_ERRONEOUS) {
@@ -190,6 +190,24 @@ static if_t *find_if(frame_t *frame) {
     return if_;
 }
 
+static void push_stack(frame_t *frame, u2 index) {
+    slot_t *local = get_local(frame, index);
+    slot_t *stack = push(frame);
+    stack->bits = local->bits;
+    stack->ref = local->ref;
+    stack->test_field = local->test_field;
+    stack->vt = local->vt;
+}
+
+static void pop_stack(frame_t *frame, u2 index) {
+    slot_t *local = get_local(frame, index);
+    slot_t *stack = pop(frame);
+    local->bits = stack->bits;
+    local->ref = stack->ref;
+    local->test_field = stack->test_field;
+    stack->vt = local->vt;
+}
+
 void exec_instruction(jvm_thread_t *thread) {
     frame_t *frame = thread->current_frame;
     u4 code_length = frame->method->code->code_length;
@@ -202,7 +220,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     while(frame->pc < code_length) {
         opcode = codes[frame->pc];
-        // printf("opcode: %d\n", opcode);
+        printf("opcode: %d\n", opcode);
         switch(opcode) {
             // Constants
             case OPCODE_nop: {   // 0x00,  // 00 
@@ -341,7 +359,7 @@ void exec_instruction(jvm_thread_t *thread) {
             // Loads
             case OPCODE_iload: {   // 0x15,     // 21 
                 u1 index = codes[frame->pc+1];
-                push(frame)->bits = get_local(frame, index)->bits;
+                push_stack(frame, index);
                 frame->pc += 2;
                 break;
             }
@@ -359,27 +377,27 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_aload: {   // 0x19,     // 25 
                 u1 index = codes[frame->pc + 1];
-                push(frame)->ref = get_local(frame, index)->ref;
+                push_stack(frame, index);
                 frame->pc += 2;
                 break;
             }
             case OPCODE_iload_0: {   // 0x1a,     // 26 
-                push(frame)->bits = get_local(frame, 0)->bits;
+                push_stack(frame, 0);
                 frame->pc++;
                 break;
             }
             case OPCODE_iload_1: {   // 0x1b,     // 27 
-                push(frame)->bits = get_local(frame, 1)->bits;
+                push_stack(frame, 1);
                 frame->pc++;
                 break;
             }
             case OPCODE_iload_2: {   // 0x1c,     // 28 
-                push(frame)->bits = get_local(frame, 2)->bits;
+                push_stack(frame, 2);
                 frame->pc++;
                 break;
             }
             case OPCODE_iload_3: {   // 0x1d,     // 29 
-                push(frame)->bits = get_local(frame, 3)->bits;
+                push_stack(frame, 3);
                 frame->pc++;
                 break;
             }
@@ -432,22 +450,22 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_aload_0: {   // 0x2a,     // 42 
-                push(frame)->ref = get_local(frame, 0)->ref;
+                push_stack(frame, 0);
                 frame->pc++;
                 break;
             }
             case OPCODE_aload_1: {   // 0x2b,     // 43 
-                push(frame)->ref = get_local(frame, 1)->ref;
+                push_stack(frame, 1);
                 frame->pc++;
                 break;
             }
             case OPCODE_aload_2: {   // 0x2c,     // 44 
-                push(frame)->ref = get_local(frame, 2)->ref;
+                push_stack(frame, 2);
                 frame->pc++;
                 break;
             }
             case OPCODE_aload_3: {   // 0x2d,     // 45 
-                push(frame)->ref = get_local(frame, 3)->ref;
+                push_stack(frame, 3);
                 frame->pc++;
                 break;
             }
@@ -502,8 +520,7 @@ void exec_instruction(jvm_thread_t *thread) {
             // Stores
             case OPCODE_istore: {   // 0x36,       // 54 
                 u1 index = codes[frame->pc+1];
-                slot_t *slot = get_local(frame, index);
-                slot->bits = pop(frame)->bits;
+                pop_stack(frame, index);
                 frame->pc += 2;
                 break;
             }
@@ -521,31 +538,27 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_astore: {   // 0x3a,       // 58 
                 u1 index = codes[frame->pc + 1];
-                get_local(frame, index)->ref = pop(frame)->ref;
+                pop_stack(frame, index);
                 frame->pc += 2;
                 break;
             }
             case OPCODE_istore_0: {   // 0x3b,       // 59 
-                slot_t *local_slot = get_local(frame, 0);
-                local_slot->bits = pop(frame)->bits;
+                pop_stack(frame, 0);
                 frame->pc++;
                 break;
             }
             case OPCODE_istore_1: {   // 0x3c,       // 60 
-                slot_t *local_slot = get_local(frame, 1);
-                local_slot->bits = pop(frame)->bits;
+                pop_stack(frame, 1);
                 frame->pc++;
                 break;
             }
             case OPCODE_istore_2: {   // 0x3d,       // 61 
-                slot_t *local_slot = get_local(frame, 2);
-                local_slot->bits = pop(frame)->bits;
+                pop_stack(frame, 2);
                 frame->pc++;
                 break;
             }
             case OPCODE_istore_3: {   // 0x3e,       // 62 
-                slot_t *local_slot = get_local(frame, 3);
-                local_slot->bits = pop(frame)->bits;
+                pop_stack(frame, 3);
                 frame->pc++;
                 break;
             }
@@ -598,22 +611,22 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_astore_0: {   // 0x4b,       // 75 
-                get_local(frame, 0)->ref = pop(frame)->ref;
+                pop_stack(frame, 0);
                 frame->pc++;
                 break;
             }
             case OPCODE_astore_1: {   // 0x4c,       // 76 
-                get_local(frame, 1)->ref = pop(frame)->ref;
+                pop_stack(frame, 1);
                 frame->pc++;
                 break;
             }
             case OPCODE_astore_2: {   // 0x4d,       // 77 
-                get_local(frame, 2)->ref = pop(frame)->ref;
+                pop_stack(frame, 2);
                 frame->pc++;
                 break;
             }
             case OPCODE_astore_3: {   // 0x4e,       // 78 
-                get_local(frame, 3)->ref = pop(frame)->ref;
+                pop_stack(frame, 3);
                 frame->pc++;
                 break;
             }
@@ -1257,7 +1270,40 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
-                if(run_method(thread, index, frame, 0) == 1) return;
+                method_t *call_method = resolve_method(thread, class, entries + index);
+
+                // 私有方法需要执行
+                if(call_method->access_flags & METHOD_ACC_PRIVATE) {
+                    frame_t *run_frame = frame_new(call_method, frame);
+                    push_frame(thread, run_frame);
+                    return;
+                }
+                u2 slot_count = call_method->arg_slot_count;
+                value_trace_t **args = NULL;
+                if(slot_count > 0) {
+                    args = calloc(1, sizeof(value_trace_t *));
+                    for(u2 i=0;i<slot_count;i++) {
+                        slot_t *stack = pop(frame);
+                        args[i] = stack->vt;
+                    }
+                }
+                // 把this pop出来
+                pop(frame);
+
+                // slot_t *stack_slot = pop(frame);
+                printf("invokevirtual: %s %s %s\n", call_method->klass->class_name, call_method->name, call_method->descriptor);
+                // test_field_t *test_field = stack_slot->test_field;
+                // printf("field: %s %s\n", test_field->name, test_field->type);
+                if(call_method->return_slot_count > 0) {
+                    value_trace_t *vt_invoke = vt_invoke_new(call_method, slot_count, args);
+                    slot_t *return_slot = push(frame);
+                    return_slot->vt = vt_invoke;
+                    for(int i = 0; i < call_method->return_slot_count - 1; i++) {
+                        push(frame);
+                    }
+                }
+                
+                // if(run_method(thread, index, frame, 0) == 1) return;
                 break;
             }
             case OPCODE_invokespecial: {   // 0xb7,       // 183
@@ -1265,7 +1311,39 @@ void exec_instruction(jvm_thread_t *thread) {
                 u2 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
-                if(run_method(thread, index, frame, 0) == 1) return;
+                method_t *call_method = resolve_method(thread, class, entries + index);
+
+                // 私有方法需要执行
+                if(call_method->access_flags & METHOD_ACC_PRIVATE) {
+                    frame_t *run_frame = frame_new(call_method, frame);
+                    push_frame(thread, run_frame);
+                    return;
+                }
+                u2 slot_count = call_method->arg_slot_count;
+                value_trace_t **args = NULL;
+                if(slot_count > 0) {
+                    args = calloc(1, sizeof(value_trace_t *));
+                    for(u2 i=0;i<slot_count;i++) {
+                        slot_t *stack = pop(frame);
+                        args[i] = stack->vt;
+                    }
+                }
+
+                // 把this pop出来
+                pop(frame);
+
+                // slot_t *stack_slot = pop(frame);
+                printf("invokespecial: %s %s %s\n", call_method->klass->class_name, call_method->name, call_method->descriptor);
+                // test_field_t *test_field = stack_slot->test_field;
+                // printf("field: %s %s\n", test_field->name, test_field->type);
+                if(call_method->return_slot_count > 0) {
+                    value_trace_t *vt_invoke = vt_invoke_new(call_method, slot_count, args);
+                    slot_t *return_slot = push(frame);
+                    return_slot->vt = vt_invoke;
+                    for(int i = 0; i < call_method->return_slot_count - 1; i++) {
+                        push(frame);
+                    }
+                }
                 break;
             }
             case OPCODE_invokestatic: {   // 0xb8,       // 184
@@ -1273,15 +1351,64 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 index2 = codes[frame->pc+2];
                 u2 index = (index1 << 8) | index2;
                 frame->pc += 3;
-                if(run_method(thread, index, frame, 1) == 1) return;
+                method_t *call_method = resolve_method(thread, class, entries + index);
+
+                u2 slot_count = call_method->arg_slot_count;
+                value_trace_t **args = NULL;
+                if(slot_count > 0) {
+                    args = calloc(1, sizeof(value_trace_t *));
+                    for(u2 i=0;i<slot_count;i++) {
+                        slot_t *stack = pop(frame);
+                        args[i] = stack->vt;
+                    }
+                }
+                // slot_t *stack_slot = pop(frame);
+                printf("invokestatic: %s %s %s\n", call_method->klass->class_name, call_method->name, call_method->descriptor);
+                // test_field_t *test_field = stack_slot->test_field;
+                // printf("field: %s %s\n", test_field->name, test_field->type);
+                if(call_method->return_slot_count > 0) {
+                    value_trace_t *vt_invoke = vt_invoke_new(call_method, slot_count, args);
+                    slot_t *return_slot = push(frame);
+                    return_slot->vt = vt_invoke;
+                    for(int i = 0; i < call_method->return_slot_count - 1; i++) {
+                        push(frame);
+                    }
+                }
+                // if(run_method(thread, index, frame, 1) == 1) return;
                 break;
             }
             case OPCODE_invokeinterface: {   // 0xb9,       // 185
                 u2 high = codes[frame->pc+1];
                 u1 low = codes[frame->pc+2];
                 u2 index = (high << 8) | low;
-                rt_cp_entry_t *entry = entries + index;
-                if(run_method(thread, index, frame, 0) == 1) return;
+                method_t *call_method = resolve_method(thread, class, entries + index);
+
+                u2 slot_count = call_method->arg_slot_count;
+                value_trace_t **args = NULL;
+                if(slot_count > 0) {
+                    args = calloc(1, sizeof(value_trace_t *));
+                    for(u2 i=0;i<slot_count;i++) {
+                        slot_t *stack = pop(frame);
+                        args[i] = stack->vt;
+                    }
+                }
+                
+                // 把this pop出来
+                pop(frame);
+
+                // slot_t *stack_slot = pop(frame);
+                printf("invokeinterface: %s %s %s\n", call_method->klass->class_name, call_method->name, call_method->descriptor);
+                // test_field_t *test_field = stack_slot->test_field;
+                // printf("field: %s %s\n", test_field->name, test_field->type);
+                if(call_method->return_slot_count > 0) {
+                    value_trace_t *vt_invoke = vt_invoke_new(call_method, slot_count, args);
+                    slot_t *return_slot = push(frame);
+                    return_slot->vt = vt_invoke;
+                    for(int i = 0; i < call_method->return_slot_count - 1; i++) {
+                        push(frame);
+                    }
+                }
+                // if(run_method(thread, index, frame, 0) == 1) return;
                 frame->pc += 5;
                 break;
             }
@@ -1467,7 +1594,8 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_areturn: {   // 0xb0,       // 176 
-                object_t *ref = pop(frame)->ref;
+                slot_t *return_slot = pop(frame);
+                object_t *ref = return_slot->ref;
                 // 有调用者，才把返回值传回去，不然就是最顶层的frame，不需要返回值
                 if(frame->invoker) push(frame->invoker)->ref = ref;
                 pop_frame(thread);

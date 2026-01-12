@@ -3,6 +3,7 @@
 #include "local_vars.h"
 #include "class.h"
 #include "../../../core/list/arraylist.h"
+#include "../junit_create/value_trace.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -81,6 +82,7 @@ frame_t *frame_new(method_t *method, frame_t *invoker) {
             slot_t *stack = pop(invoker);
             local->bits = stack->bits;
             local->ref = stack->ref;
+            local->vt = vt_param_new(i);
         }
         frame->test_class = invoker->test_class;
         frame->test_method = invoker->test_method;
