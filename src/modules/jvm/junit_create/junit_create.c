@@ -215,9 +215,12 @@ void create_junit_test_class(
                     push_frame(thread, frame);
                     interpret(thread);
 
-                    slot_t *slot = &frame->operand_stack[0];
-                    printf("\n\nprint value trace\n");
-                    print_value_trace(slot->vt);
+                    arraylist *if_branchs = test_method->if_branchs;
+                    for(size_t i = 0;i<if_branchs->size;i++) {
+                        if_t *ift = (if_t*)arraylist_get(if_branchs, i);
+                        printf("\n\nprint value trace: %d %s\n", i, ift->if_name);
+                        print_value_trace(ift->vt, 0);
+                    }
 
                     // 搜集结果
                     printf("interpret end\n");

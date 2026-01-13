@@ -3,12 +3,13 @@
 #include <stdlib.h>
 #include "../runtime/class.h"
 
+typedef struct value_trace_t value_trace_t;
+typedef struct test_method_t test_method_t;
+
 typedef void (*value_trace_back_fn)(value_trace_t *vt, test_method_t *method);
 
 typedef struct field_t field_t;
 typedef struct method_t method_t;
-typedef struct value_trace_t value_trace_t;
-typedef struct test_method_t test_method_t;
 typedef struct vt_back_stmt_t vt_back_stmt_t;
 
 typedef enum {
@@ -80,7 +81,7 @@ value_trace_t *vt_compare_new(int opcode, value_trace_t *left, value_trace_t *ri
 
 value_trace_t *vt_new(vt_kind_e kind);
 
-void print_value_trace(value_trace_t *vt);
+void print_value_trace(value_trace_t *vt, int depth);
 
 void register_vt_back_stmts();
 

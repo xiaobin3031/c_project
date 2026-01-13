@@ -2,6 +2,7 @@
 #include "../runtime/class.h"
 #include "../../../core/list/arraylist.h"
 #include <stdlib.h>
+#include <string.h>
 
 static arraylist *g_vt_back_stmts;
 
@@ -57,52 +58,77 @@ value_trace_t *vt_new(vt_kind_e kind) {
     return vt;
 }
 
-void print_value_trace(value_trace_t *vt) {
-    if(!vt) return;
+void print_value_trace(value_trace_t *vt, int depth) {
+    if (!vt) {
+        printf("%*s(null)\n", depth * 2, "");
+        return;
+    }
 
-    switch(vt->kind) {
+    const char *indent = "";
+    int indent_width = depth * 2;
+
+    switch (vt->kind) {
         case VT_CONST: {
-            printf("vt_const: %f\n", vt->constant.value);
+            printf("%*svt_const: %f\n", indent_width, indent, vt->constant.value);
             break;
         }
+
         case VT_PARAM: {
-            printf("vt_param index: %d\n", vt->param.param_index);
+            printf("%*svt_param: index=%d\n",
+                   indent_width, indent, vt->param.param_index);
             break;
         }
+
         case VT_FIELD: {
-            printf("vt_field: %s %s\n", vt->field.field->name, vt->field.field->descriptor);
-            print_value_trace(vt->field.base);
-            printf("\n");
+            printf("%*svt_field: %s %s\n",
+                   indent_width, indent,
+                   vt->field.field->name,
+                   vt->field.field->descriptor);
+
+            printf("%*sbase:\n", indent_width + 2, indent);
+            print_value_trace(vt->field.base, depth + 2);
             break;
         }
+
         case VT_INVOKE: {
-            printf("vt_invoke: %s %s %s\n", vt->invoke.method->klass->class_name, vt->invoke.method->name, vt->invoke.method->descriptor);
-            for(int i=0;i<vt->invoke.argc;i++) {
-                printf("arg %d:", i);
-                print_value_trace(vt->invoke.args[i]);
+            printf("%*svt_invoke: %s %s %s\n",
+                   indent_width, indent,
+                   vt->invoke.method->klass->class_name,
+                   vt->invoke.method->name,
+                   vt->invoke.method->descriptor);
+
+            for (int i = 0; i < vt->invoke.argc; i++) {
+                printf("%*sarg[%d]:\n", indent_width + 2, indent, i);
+                print_value_trace(vt->invoke.args[i], depth + 2);
             }
-            printf("\n");
             break;
         }
+
         case VT_COMPARE: {
-            printf("vt_compare: %d\n", vt->compare.opcode);
-            print_value_trace(vt->compare.left);
-            print_value_trace(vt->compare.right);
-            printf("\n");
+            printf("%*svt_compare: opcode=%d\n",
+                   indent_width, indent, vt->compare.opcode);
+
+            printf("%*sleft:\n", indent_width + 2, indent);
+            print_value_trace(vt->compare.left, depth + 2);
+
+            printf("%*sright:\n", indent_width + 2, indent);
+            print_value_trace(vt->compare.right, depth + 2);
             break;
         }
+
         case VT_UNKNOWN: {
-            printf("vt_unknown\n");
+            printf("%*svt_unknown\n", indent_width, indent);
             break;
         }
     }
 }
 
+
 void register_vt_back_stmt(const char *class_name, const char *method_name, const char *descriptor, value_trace_back_fn fn) {
     vt_back_stmt_t *stmt = calloc(1, sizeof(vt_back_stmt_t));
-    stmt->class_name = class_name;
-    stmt->method_name = method_name;
-    stmt->descriptor = descriptor;
+    stmt->class_name = strdup(class_name);
+    stmt->method_name = strdup(method_name);
+    stmt->descriptor = strdup(descriptor);
     stmt->fn = fn;
     arraylist_add(g_vt_back_stmts, stmt);
 }
@@ -128,5 +154,15 @@ value_trace_back_fn find_vt_back_fn(const char *class_name, const char *method_n
 }
 
 void value_trace_back_code(value_trace_t *vt, test_method_t *method) {
+    switch(vt->kind) {
+        case VT_INVOKE: {
+            value_trace_back_fn fn = find_vt_back_fn(vt->invoke.method->klass->class_name, vt->invoke.method->name, vt->invoke.method->descriptor);
+            if(fn == NULL) {
 
+            } else {
+                fn(vt, method);
+            }
+            break;
+        }
+    }
 }

@@ -5,12 +5,22 @@
 #include "stmt.h"
 
 typedef struct test_method_t test_method_t;
+typedef struct value_trace_t value_trace_t;
 
 typedef struct {
     char *name;
     char *type;
     arraylist *annos;
 } test_field_t;
+
+typedef struct {
+    // 当前if所在的pc
+    u2 pc;
+    char *if_name;
+    // 已经处理的if逻辑值，0 进if逻辑，1 进else逻辑，2 跳出逻辑
+    int taken;
+    value_trace_t *vt;
+} if_t;
 
 struct test_method_t {
     char *name;
@@ -23,6 +33,9 @@ struct test_method_t {
     
     // 实际方法调用
     stmt_t *act_call;
+
+    // 本次方法经历的所有if节点
+    arraylist *if_branchs;
 };
 
 typedef struct {
@@ -37,14 +50,6 @@ typedef struct {
     arraylist *fields;   // test_field
 
 } test_class_t;
-
-typedef struct {
-    // 当前if所在的pc
-    u2 pc;
-
-    // 已经处理的if逻辑值，0 进if逻辑，1 进else逻辑，2 跳出逻辑
-    int taken;
-} if_t;
 
 void create_junit_test_class(
     const char *src_class_dir,

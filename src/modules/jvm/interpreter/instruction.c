@@ -208,6 +208,18 @@ static void pop_stack(frame_t *frame, u2 index) {
     stack->vt = local->vt;
 }
 
+/**
+ * 记录分支信息
+ */
+static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char *if_name, u2 pc) {
+    if_t *ift = calloc(1, sizeof(if_t));
+    ift->if_name = strdup(if_name);
+    ift->pc = pc;
+    ift->vt = slot->vt;
+    arraylist_add(test_method->if_branchs, ift);
+    return ift;
+}
+
 void exec_instruction(jvm_thread_t *thread) {
     frame_t *frame = thread->current_frame;
     u4 code_length = frame->method->code->code_length;
@@ -1005,13 +1017,15 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_ifeq: {   // 0x99,       // 153 
                 slot_t *slot = pop(frame);
                 int32_t val = (int32_t)slot->bits;
-                if_t *if_ = find_if(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifeq", frame->pc);
                 val = 1;
                 printf("opcode: ifeq  %d value trace:\n", val);
-                print_value_trace(slot->vt);
+                print_value_trace(slot->vt, 0);
                 if(val == 0) {
+                    ift->taken = 0;
                     go_to_by_index(frame);
                 }else{
+                    ift->taken = 1;
                     frame->pc += 3;
                 }
                 break;
@@ -1222,8 +1236,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 i1 = codes[frame->pc+1];
                 u1 i2 = codes[frame->pc+2];
                 u2 index = (i1 << 8) | i2;
-                rt_cp_entry_t *entry = entries + index;
-                field_t *target_field = resolve_field(thread, entry);
+                field_t *target_field = resolve_field(thread, entries + index);
                 object_t *ref = pop(frame)->ref;
                 if(ref == NULL) {
                     throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
