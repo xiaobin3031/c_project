@@ -1303,7 +1303,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     }
                 }
                 // 把this pop出来
-                pop(frame);
+                slot_t *this = pop(frame);
 
                 // slot_t *stack_slot = pop(frame);
                 printf("invokevirtual: %s %s %s\n", call_method->klass->class_name, call_method->name, call_method->descriptor);
@@ -1311,6 +1311,10 @@ void exec_instruction(jvm_thread_t *thread) {
                 // printf("field: %s %s\n", test_field->name, test_field->type);
                 if(call_method->return_slot_count > 0) {
                     value_trace_t *vt_invoke = vt_invoke_new(call_method, slot_count, args);
+                    if(this->test_field) {
+                        vt_invoke->invoke.field_name = this->test_field->name;
+                        vt_invoke->invoke.call_from_test_field = 1;
+                    }
                     slot_t *return_slot = push(frame);
                     return_slot->vt = vt_invoke;
                     for(int i = 0; i < call_method->return_slot_count - 1; i++) {

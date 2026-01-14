@@ -4,12 +4,12 @@
 #include <string.h>
 
 slot_t *peek(frame_t *frame) {
-    if(frame->sp <= 0) {
+    if(frame->sp < 0) {
         dump_frame(frame);
         perror("stack underflow");
         abort();
     }
-    if(frame->sp >= frame->operand_stack_size) {
+    if(frame->sp > frame->operand_stack_size) {
         dump_frame(frame);
         perror("stack overflow");
         abort();

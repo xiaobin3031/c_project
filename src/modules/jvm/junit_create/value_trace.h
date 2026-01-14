@@ -6,7 +6,7 @@
 typedef struct value_trace_t value_trace_t;
 typedef struct test_method_t test_method_t;
 
-typedef void (*value_trace_back_fn)(value_trace_t *vt, test_method_t *method);
+typedef value_trace_t* (*value_trace_back_fn)(value_trace_t *vt, test_method_t *method);
 
 typedef struct field_t field_t;
 typedef struct method_t method_t;
@@ -18,6 +18,8 @@ typedef enum {
     VT_FIELD,
     VT_INVOKE,
     VT_COMPARE,
+    VT_NULL,
+    VT_NOTNULL,
 
     VT_UNKNOWN
 } vt_kind_e;
@@ -28,6 +30,8 @@ struct vt_back_stmt_t {
     char *descriptor;
 
     value_trace_back_fn fn;
+
+    int argc;
 };
 
 struct value_trace_t { 
@@ -56,6 +60,9 @@ struct value_trace_t {
             method_t *method;
             int argc;
             value_trace_t **args;
+            // 调用了哪个变量的方法
+            char *field_name;
+            int call_from_test_field;
         } invoke;
 
         // 比较if
@@ -65,6 +72,8 @@ struct value_trace_t {
             value_trace_t *right;
         } compare;
     };
+
+    value_trace_t *value;
 };
 
 value_trace_t *vt_const_new(int64_t value);
@@ -83,6 +92,7 @@ value_trace_t *vt_new(vt_kind_e kind);
 
 void print_value_trace(value_trace_t *vt, int depth);
 
+void register_vt_back_stmt(const char *class_name, const char *method_name, const char *descriptor, value_trace_back_fn fn);
 void register_vt_back_stmts();
 
 void value_trace_back_code(value_trace_t *vt, test_method_t *method);

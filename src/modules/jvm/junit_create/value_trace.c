@@ -133,8 +133,10 @@ void register_vt_back_stmt(const char *class_name, const char *method_name, cons
     arraylist_add(g_vt_back_stmts, stmt);
 }
 
-void stringutils_isempty(value_trace_t *vt, test_method_t *method) {
-
+value_trace_t *stringutils_isempty(value_trace_t *vt, test_method_t *method) {
+    value_trace_t *next = vt->invoke.args[0];
+    next->value = vt_new(VT_NULL);
+    return next;
 }
 
 void register_vt_back_stmts() {
@@ -157,10 +159,12 @@ void value_trace_back_code(value_trace_t *vt, test_method_t *method) {
     switch(vt->kind) {
         case VT_INVOKE: {
             value_trace_back_fn fn = find_vt_back_fn(vt->invoke.method->klass->class_name, vt->invoke.method->name, vt->invoke.method->descriptor);
-            if(fn == NULL) {
-
-            } else {
-                fn(vt, method);
+            if(fn != NULL) {
+                value_trace_t *next = fn(vt, method);
+                value_trace_back_code(next, method);
+            } else if(vt->invoke.call_from_test_field == 1) {
+                // 调用了test_field的方法
+                method_t *method = ;
             }
             break;
         }
