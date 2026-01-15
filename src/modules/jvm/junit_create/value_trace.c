@@ -143,7 +143,11 @@ void register_vt_back_stmt(const char *class_name, const char *method_name, cons
 value_trace_t *stringutils_isempty(value_trace_t *vt, test_method_t *method) {
     value_trace_t *value = vt_new(VT_UNKNOWN);
     value_trace_t *next = vt->invoke.args[0];
-    if(vt->value != NULL && vt->value->constant.value == 0) {
+    if(vt->value == NULL) {
+        perror("StringUtils is empty value is null");
+        abort();
+    }
+    if(vt->value->constant.value == 0) {
         // 要不为空
         value->kind = VT_STRING;
         // 方便使用的时候直接使用
