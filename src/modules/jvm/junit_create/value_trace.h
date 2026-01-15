@@ -14,6 +14,7 @@ typedef struct vt_back_stmt_t vt_back_stmt_t;
 
 typedef enum {
     VT_CONST,   // 常量
+    VT_STRING,  // 字符串
     VT_PARAM,
     VT_FIELD,
     VT_INVOKE,
@@ -43,6 +44,11 @@ struct value_trace_t {
         struct {
             int64_t  value;
         } constant;
+
+        // 字符串
+        struct {
+            const char *value;
+        } string;
 
         // 参数
         struct {
@@ -77,6 +83,8 @@ struct value_trace_t {
 };
 
 value_trace_t *vt_const_new(int64_t value);
+
+value_trace_t *vt_string_new(const char *string);
 
 value_trace_t *vt_field_new(value_trace_t *base, field_t *field);
 

@@ -47,6 +47,7 @@ typedef struct {
 
 typedef struct {
     expr_t *expr;       // NULL 表示static调用
+    const char *field;
     const char *method;
     arraylist *args;
 } method_call_expr_t;

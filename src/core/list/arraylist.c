@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 arraylist *arraylist_new(size_t init_capacity) {
-    arraylist *list = malloc(sizeof(arraylist));
+    arraylist *list = calloc(1, sizeof(arraylist));
     list->capacity = init_capacity;
     list->step_capacity = init_capacity;
     list->size = 0;

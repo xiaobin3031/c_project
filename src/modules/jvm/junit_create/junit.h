@@ -29,13 +29,19 @@ struct test_method_t {
     arraylist *body;
 
     // 拼凑变量的后缀
-    int local_var_index;
+    int *local_var_index;
     
     // 实际方法调用
     stmt_t *act_call;
 
-    // 本次方法经历的所有if节点
+    // 方法的所有节点
+    arraylist *all_ifs;
+
+    // 本次方法经历的所有if节点，用来反推结果值
     arraylist *if_branchs;
+
+    // pc跑到过结束
+    int pc_has_reach_end;
 };
 
 typedef struct {

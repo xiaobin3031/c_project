@@ -13,6 +13,13 @@ value_trace_t *vt_const_new(int64_t value) {
     return vt;
 }
 
+value_trace_t *vt_string_new(const char *string) {
+    value_trace_t *vt = calloc(1, sizeof(value_trace_t));
+    vt->kind = VT_STRING;
+    vt->string.value = strdup(string);
+    return vt;
+}
+
 value_trace_t *vt_field_new(value_trace_t *base, field_t *field) {
     value_trace_t *vt = calloc(1, sizeof(value_trace_t));
     vt->kind = VT_FIELD;
@@ -134,8 +141,18 @@ void register_vt_back_stmt(const char *class_name, const char *method_name, cons
 }
 
 value_trace_t *stringutils_isempty(value_trace_t *vt, test_method_t *method) {
+    value_trace_t *value = vt_new(VT_UNKNOWN);
     value_trace_t *next = vt->invoke.args[0];
-    next->value = vt_new(VT_NULL);
+    if(vt->value != NULL && vt->value->constant.value == 0) {
+        // 要不为空
+        value->kind = VT_STRING;
+        // 方便使用的时候直接使用
+        value->string.value = "\"1\"";
+    }else{
+        // 要为空
+        value->kind = VT_NULL;
+    }
+    next->value = value;
     return next;
 }
 
@@ -155,16 +172,50 @@ value_trace_back_fn find_vt_back_fn(const char *class_name, const char *method_n
     return NULL;
 }
 
-void value_trace_back_code(value_trace_t *vt, test_method_t *method) {
+char *get_value(value_trace_t *value) {
+    switch(value->kind) {
+        case VT_NULL:
+            return "null";
+        case VT_STRING:
+            return value->string.value;
+    }
+    return "null";
+}
+
+void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
+    if(!vt) return;
+
+    if(g_vt_back_stmts == NULL) register_vt_back_stmts();
+
     switch(vt->kind) {
         case VT_INVOKE: {
             value_trace_back_fn fn = find_vt_back_fn(vt->invoke.method->klass->class_name, vt->invoke.method->name, vt->invoke.method->descriptor);
             if(fn != NULL) {
-                value_trace_t *next = fn(vt, method);
-                value_trace_back_code(next, method);
+                value_trace_t *next = fn(vt, test_method);
+                value_trace_back_code(next, test_method);
             } else if(vt->invoke.call_from_test_field == 1) {
-                // 调用了test_field的方法
-                method_t *method = ;
+                // 调用了test_field的方法，需要设置
+                method_t *method = vt->invoke.method;
+                char *method_name = strdup(method->name);
+                if(strncmp(method_name, "get", 3) == 0) {
+                    method_name[0] = 's';
+                    method_call_expr_t *mc_expr = method_call_expr_new(NULL, method_name);
+                    mc_expr->field = strdup(vt->invoke.field_name);
+                    arraylist_add(mc_expr->args, get_value(vt->value));
+
+                    expr_t *expr = expr_new(EXPR_METHOD_CALL);
+                    expr->method_call = mc_expr;
+                    expr_stmt_t *stmt_expr = expr_stmt_new(expr);
+
+                    stmt_t *stmt = stmt_new(STMT_EXPR);
+                    stmt->expr = stmt_expr;
+                    arraylist_add(test_method->body, stmt);
+                }
+                else {
+                    printf("unknown back code, invoke: %s\n", method_name);
+                }
+
+                free(method_name);
             }
             break;
         }

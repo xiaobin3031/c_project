@@ -37,12 +37,15 @@ static void add_import(test_class_t *test_class, const char *type) {
     arraylist_add(test_class->imports, strdup(buffer));
 }
 
-static void add_method_parameters(test_method_t *test_method, const char *descriptor) {
+static arraylist *parameters_init_stmts(const char *descriptor) {
+    arraylist *stmts = arraylist_new(10);
+
+
     const char *ptr = descriptor;
     ptr++;
     char arg_buffer[200];
     while(*ptr && *ptr != ')') {
-        sprintf(arg_buffer, "arg%d", test_method->local_var_index++);
+        sprintf(arg_buffer, "arg%d", stmts->size + 1);
         var_decl_stmt_t *arg_decl = var_decl_stmt_new(NULL, arg_buffer, NULL);
         expr_t *init;
         switch(*ptr) {
@@ -135,10 +138,43 @@ static void add_method_parameters(test_method_t *test_method, const char *descri
         arg_decl->init = init;
         stmt_t *stmt = stmt_new(STMT_VAR_DECL);
         stmt->var_decl = arg_decl;
-        arraylist_add(test_method->body, stmt);
+        arraylist_add(stmts, stmt);
 
         ptr++;
     }
+
+    return stmts;
+}
+
+/**
+ * 本次frame，有没有运行到最后一行
+ */
+int is_frame_reach_end(frame_t *frame) {
+    rt_code_t *code = frame->method->code;
+    if(frame->pc < code->code_length) {
+        // 本次还没有走到
+        return 0;
+    }
+    return 1;
+}
+
+/**
+ * 方法的所有节点是否都已经结束
+ */
+int is_test_method_finish(test_method_t *test_method, frame_t *frame) {
+    arraylist *ifs = test_method->if_branchs;
+    if(test_method->pc_has_reach_end == 0) {
+        return 0;
+    }
+    for(size_t i=0;i<ifs->size;i++) {
+        if_t *ift = arraylist_get(ifs, i);
+        if(ift->taken == 0) {
+            // 只要有一个节点没跑到，方法就还未覆盖
+            return 0;
+        }
+    }
+
+    return 1;
 }
 
 void create_junit_test_class(
@@ -190,12 +226,11 @@ void create_junit_test_class(
                     sprintf(act_call_buffer, "this.%s.%s", inject_field_name, method->name);
                     method_call_expr_t *act_call_expr = method_call_expr_new(NULL, act_call_buffer);
                     test_method_t *test_method = test_method_new(method->name, "void");
-                    add_method_parameters(test_method, method->descriptor);
+                    arraylist *arg_init_stmts = parameters_init_stmts(method->descriptor);
                     frame_t *frame = frame_new(method, NULL);
                     // act call
-                    arraylist *body = test_method->body;
-                    for(size_t i = 0;i<body->size;i++) {
-                        stmt_t *stmt = arraylist_get(body, i);
+                    for(size_t i = 0;i<arg_init_stmts->size;i++) {
+                        stmt_t *stmt = arraylist_get(arg_init_stmts, i);
                         arraylist_add(act_call_expr->args, strdup(stmt->var_decl->name));
                         slot_t *slot = get_local(frame, i + 1);
                         test_field_t *test_field = test_field_new(stmt->var_decl->name, stmt->var_decl->type);
@@ -205,32 +240,76 @@ void create_junit_test_class(
                     expr_t *act_expr = expr_new(EXPR_METHOD_CALL);
                     act_expr->method_call = act_call_expr;
                     act_call_stmt->expr = expr_stmt_new(act_expr);
-                    test_method->act_call = act_call_stmt;
-                    arraylist_add(test_method->annos, "@Test");
-                    arraylist_add(test_class->methods, test_method);
 
                     // 增加方法体
                     frame->test_class = test_class;
-                    frame->test_method = test_method;
-                    push_frame(thread, frame);
-                    interpret(thread);
 
-                    arraylist *if_branchs = test_method->if_branchs;
-                    for(size_t i = 0;i<if_branchs->size;i++) {
-                        if_t *ift = (if_t*)arraylist_get(if_branchs, i);
-                        printf("\n\nprint value trace: %d %s\n", i, ift->if_name);
-                        print_value_trace(ift->vt, 0);
+                    int name_index = 1;
+                    char name_buffer[256];
+                    arraylist *all_ifs = arraylist_new(10);
+                    int arg_index = arg_init_stmts->size + 1;
+                    while(1) {
+                        sprintf(name_buffer, "%s_%d", method->name, name_index);
+                        test_method_t *test_method = test_method_new(method->name, "void");
+                        test_method->act_call = act_call_stmt;
+                        test_method->local_var_index = &arg_index;
+                        test_method->all_ifs = all_ifs;
+                        arraylist_add(test_method->annos, "@Test");
+                        arraylist_add(test_class->methods, test_method);
+                        frame->test_method = test_method;
+
+                        // 复制初始化参数
+                        for(size_t i = 0;i<arg_init_stmts->size;i++) {
+                            stmt_t *stmt = arraylist_get(arg_init_stmts, i);
+                            arraylist_add(test_method->body, stmt);
+                        }
+
+                        push_frame(thread, frame);
+                        interpret(thread);
+
+                        arraylist *if_branchs = test_method->if_branchs;
+                        for(size_t i = 0;i<if_branchs->size;i++) {
+                            if_t *ift = (if_t*)arraylist_get(if_branchs, i);
+                            printf("\n\nprint value trace: %d %s\n", i, ift->if_name);
+                            print_value_trace(ift->vt, 0);
+                        }
+
+                        // 搜集结果
+                        printf("interpret end\n");
+
+                        // 将if转成代码
+                        arraylist *ifs = test_method->if_branchs;
+                        for(size_t i = 0;i<ifs->size;i++) {
+                            if_t *ift = arraylist_get(ifs, i);
+                            value_trace_back_code(ift->vt, test_method);
+                        }
+
+                        // 设置结束条件
+                        if(is_frame_reach_end(frame) == 1) {
+                            test_method->pc_has_reach_end = 1;
+                        }
+                        if(is_test_method_finish(test_method, frame) == 1) {
+                            // 方法都覆盖了，退出，遍历下一个方法
+                            break;
+                        }
+
+                        frame->pc = 0;
+                        frame->sp = 0;
+
+                        name_index++;
+
+                        // todo  测试
+                        break;
                     }
 
-                    // 搜集结果
-                    printf("interpret end\n");
+                    // todo  测试
                     break;
                 }
             }
 
             free(inject_field_name);
 
-            // print_test_class(test_class);
+            print_test_class(test_class);
 
             // 暂时只解析第一个文件
             break;
@@ -283,6 +362,9 @@ static void print_expr(expr_t *expr) {
         }
         case EXPR_METHOD_CALL: {
             method_call_expr_t *method_call_expr = expr->method_call;
+            if(method_call_expr->field != NULL) {
+                printf("%s.", method_call_expr->field);
+            }
             printf("%s(", method_call_expr->method);
             arraylist *args = method_call_expr->args;
             for(size_t i = 0; i < args->size; i++) {
@@ -330,6 +412,11 @@ void print_test_class(test_class_t *test_class) {
     printf("\n");
 
     printf("/**\n * Create by xuweibin\n */\n");
+    arraylist *class_annos = test_class->annos;
+    for(size_t i=0;i<class_annos->size;i++) {
+        char *anno = arraylist_get(class_annos, i);
+        printf("%s\n", anno);
+    }
     printf("public class Test%s {\n\n", test_class->class_name);
     arraylist *fields = test_class->fields;
 

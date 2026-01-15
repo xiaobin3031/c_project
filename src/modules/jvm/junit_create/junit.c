@@ -10,7 +10,6 @@ test_method_t *test_method_new(const char *name, const char *return_type) {
     method->return_type = strdup(return_type);
     method->annos = arraylist_new(2);
     method->body = arraylist_new(10);
-    method->local_var_index = 1;
     method->if_branchs = arraylist_new(10);
     return method;
 }

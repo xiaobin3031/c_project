@@ -171,25 +171,6 @@ static int is_assignable(class_t *from, class_t *to) {
     return is_class_assignable(from, to);
 }
 
-static if_t *find_if(frame_t *frame) {
-    arraylist *ifs = frame->ifs;
-    u2 pc = frame->pc;
-    if_t *if_ = NULL;
-    for(size_t i =0;i<ifs->size;i++) {
-        if_t *tmp = (if_t*)arraylist_get(ifs, i);
-        if(tmp->pc == pc) {
-            if_ = tmp;
-            break;
-        }
-    }
-
-    if(!if_) {
-        if_ = if_new(pc);
-        arraylist_add(ifs, if_);
-    }
-    return if_;
-}
-
 static void push_stack(frame_t *frame, u2 index) {
     slot_t *local = get_local(frame, index);
     slot_t *stack = push(frame);
@@ -212,11 +193,58 @@ static void pop_stack(frame_t *frame, u2 index) {
  * 记录分支信息
  */
 static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char *if_name, u2 pc) {
-    if_t *ift = calloc(1, sizeof(if_t));
-    ift->if_name = strdup(if_name);
-    ift->pc = pc;
+    // 从之前的记录中找到if
+    arraylist *allifs = test_method->all_ifs;
+    if_t *ift = NULL;
+    for(size_t i=0;i<allifs->size;i++) {
+        if_t *tmp = arraylist_get(allifs, i);
+        if(tmp->pc == pc) {
+            ift = tmp;
+            break;
+        }
+    }
+
+    if(ift == NULL) {
+        ift = calloc(1, sizeof(if_t));
+        ift->if_name = strdup(if_name);
+        ift->pc = pc;
+        // 保存到这个方法的所有分支里，后续判断是否结束，以及判断是否已经遍历过了
+        arraylist_add(allifs, ift);
+    }
     ift->vt = slot->vt;
+
     arraylist_add(test_method->if_branchs, ift);
+    return ift;
+}
+
+
+/**
+ * 记录比较节点
+ */
+static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_name, frame_t *frame) {
+    // 从之前的记录中找到if
+    arraylist *allifs = frame->test_method->all_ifs;
+    if_t *ift = NULL;
+    for(size_t i=0;i<allifs->size;i++) {
+        if_t *tmp = arraylist_get(allifs, i);
+        if(tmp->pc == frame->pc) {
+            ift = tmp;
+            break;
+        }
+    }
+
+    if(ift == NULL) {
+        ift = calloc(1, sizeof(if_t));
+        ift->if_name = strdup(if_name);
+        ift->pc = frame->pc;
+        // 保存到这个方法的所有分支里，后续判断是否结束，以及判断是否已经遍历过了
+        arraylist_add(allifs, ift);
+    }
+
+    value_trace_t *vt = vt_compare_new(frame->pc, slot->vt, slot2->vt);
+    ift->vt = vt;
+
+    arraylist_add(frame->test_method->if_branchs, ift);
     return ift;
 }
 
@@ -1016,25 +1044,20 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifeq: {   // 0x99,       // 153 
                 slot_t *slot = pop(frame);
-                int32_t val = (int32_t)slot->bits;
                 if_t *ift = record_branch(slot, frame->test_method, "ifeq", frame->pc);
-                val = 1;
-                printf("opcode: ifeq  %d value trace:\n", val);
-                print_value_trace(slot->vt, 0);
-                if(val == 0) {
-                    ift->taken = 0;
+                if(ift->taken == 0) {
+                    ift->vt->value = vt_const_new(0);
                     go_to_by_index(frame);
                 }else{
-                    ift->taken = 1;
+                    ift->vt->value = vt_const_new(1);
                     frame->pc += 3;
                 }
                 break;
             }
             case OPCODE_ifne: {   // 0x9a,       // 154 
                 slot_t *slot = pop(frame);
-                int32_t val = (int32_t)slot->bits;
-                printf("opcode: ifne  %d\n", val);
-                if(val != 0) {
+                if_t *ift = record_branch(slot, frame->test_method, "ifne", frame->pc);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1043,9 +1066,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_iflt: {   // 0x9b,       // 155 
                 slot_t *slot = pop(frame);
-                int32_t val = (int32_t)slot->bits;
-                printf("opcode: iflt   %d\n", val);
-                if(val < 0) {
+                if_t *ift = record_branch(slot, frame->test_method, "iflt", frame->pc);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1054,9 +1076,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifge: {   // 0x9c,       // 156 
                 slot_t *slot = pop(frame);
-                int32_t val = (int32_t)slot->bits;
-                printf("opcode: ifge    %d\n", val);
-                if(val >= 0) {
+                if_t *ift = record_branch(slot, frame->test_method, "ifge", frame->pc);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1065,9 +1086,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifgt: {   // 0x9d,       // 157 
                 slot_t *slot = pop(frame);
-                int32_t val = (int32_t)slot->bits;
-                printf("opcode: ifgt    %d\n", val);
-                if(val > 0) {
+                if_t *ift = record_branch(slot, frame->test_method, "ifgt", frame->pc);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1076,9 +1096,8 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifle: {   // 0x9e,       // 158 
                 slot_t *slot = pop(frame);
-                int32_t val = (int32_t)slot->bits;
-                printf("opcode: ifle    %d\n", val);
-                if(val <= 0) {
+                if_t *ift = record_branch(slot, frame->test_method, "ifle", frame->pc);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1087,11 +1106,9 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_if_icmpeq: {   // 0x9f,       // 159 
                 slot_t *slot2 = pop(frame);
-                int32_t v2 = (int32_t)slot2->bits;
                 slot_t *slot1 = pop(frame);
-                int32_t v1 = (int32_t)slot1->bits;
-                printf("opcode: if_icmpeq   %d\n", v1 == v2 ? 1 : 0);
-                if(v1 == v2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpeq", frame);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1100,11 +1117,9 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_if_icmpne: {   // 0xa0,       // 160 
                 slot_t *slot2 = pop(frame);
-                int32_t v2 = (int32_t)slot2->bits;
                 slot_t *slot1 = pop(frame);
-                int32_t v1 = (int32_t)slot1->bits;
-                printf("opcode: if_icmpne    %d\n", v1 != v2 ? 1 : 0);
-                if(v1 != v2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpne", frame);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1113,11 +1128,9 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_if_icmplt: {   // 0xa1,       // 161 
                 slot_t *slot2 = pop(frame);
-                int32_t v2 = (int32_t)slot2->bits;
                 slot_t *slot1 = pop(frame);
-                int32_t v1 = (int32_t)slot1->bits;
-                printf("opcode: if_icmplt    %d\n", v1 < v2 ? 1 : 0);
-                if(v1 < v2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "icmplt", frame);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1126,11 +1139,9 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_if_icmpge: {   // 0xa2,       // 162 
                 slot_t *slot2 = pop(frame);
-                int32_t v2 = (int32_t)slot2->bits;
                 slot_t *slot1 = pop(frame);
-                int32_t v1 = (int32_t)slot1->bits;
-                printf("opcode: if_icmpge    %d\n", v1 >= v2 ? 1 : 0);
-                if(v1 >= v2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpge", frame);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1139,11 +1150,9 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_if_icmpgt: {   // 0xa3,       // 163 
                 slot_t *slot2 = pop(frame);
-                int32_t v2 = (int32_t)slot2->bits;
                 slot_t *slot1 = pop(frame);
-                int32_t v1 = (int32_t)slot1->bits;
-                printf("opcode: if_icmpgt    %d\n", v1 > v2 ? 1 : 0);
-                if(v1 > v2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpgt", frame);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1152,11 +1161,9 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_if_icmple: {   // 0xa4,       // 164 
                 slot_t *slot2 = pop(frame);
-                int32_t v2 = (int32_t)slot2->bits;
                 slot_t *slot1 = pop(frame);
-                int32_t v1 = (int32_t)slot1->bits;
-                printf("opcode: if_icmple     %d\n", v1 <= v2 ? 1 : 0);
-                if(v1 <= v2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "icmple", frame);
+                if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
                     frame->pc += 3;
@@ -1169,10 +1176,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 int16_t index = (int16_t)((high << 8) | low);
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                object_t *obj2 = slot2->ref;
-                object_t *obj1 = slot1->ref;
-                printf("opcode: if_acmpeq     %d\n", obj1 == obj2 ? 1 : 0);
-                if(obj1 == obj2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "acmpeq", frame);
+                if(ift->taken == 0) {
                     frame->pc += index;
                 }else{
                     frame->pc += 3;
@@ -1185,10 +1190,8 @@ void exec_instruction(jvm_thread_t *thread) {
                 int16_t index = (int16_t)((high << 8) | low);
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                object_t *obj2 = slot2->ref;
-                object_t *obj1 = slot1->ref;
-                printf("opcode: if_acmpne     %d\n", obj1 != obj2 ? 1 : 0);
-                if(obj1 != obj2) {
+                if_t *ift = record_compare_branch(slot1, slot2, "acmpne", frame);
+                if(ift->taken == 0) {
                     frame->pc += index;
                 }else{
                     frame->pc += 3;
