@@ -29,3 +29,7 @@ stmt_t *stmt_new( stmt_kind_e kind) {
     stmt->kind = kind;
     return stmt;
 }
+
+void stmt_free(stmt_t *stmt) {
+
+}

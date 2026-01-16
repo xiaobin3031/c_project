@@ -22,6 +22,9 @@ typedef enum {
     VT_NULL,
     VT_NOTNULL,
 
+    VT_SUB_CONST_INT,
+    VT_SUB_CONST_LONG,
+
     VT_UNKNOWN
 } vt_kind_e;
 
@@ -42,7 +45,9 @@ struct value_trace_t {
 
         // 常量
         struct {
-            int64_t  value;
+            uint64_t  value;
+
+            vt_kind_e sub_kind;
         } constant;
 
         // 字符串

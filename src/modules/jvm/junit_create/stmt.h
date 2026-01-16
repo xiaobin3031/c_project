@@ -40,3 +40,5 @@ expr_stmt_t *expr_stmt_new(expr_t *expr);
 assert_stmt_t *assert_stmt_new(const char *assert_method);
 
 stmt_t *stmt_new(stmt_kind_e kind);
+
+void stmt_free(stmt_t *stmt);

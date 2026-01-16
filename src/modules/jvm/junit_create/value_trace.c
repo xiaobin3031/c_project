@@ -76,7 +76,14 @@ void print_value_trace(value_trace_t *vt, int depth) {
 
     switch (vt->kind) {
         case VT_CONST: {
-            printf("%*svt_const: %f\n", indent_width, indent, vt->constant.value);
+            switch(vt->constant.sub_kind) {
+                case VT_SUB_CONST_INT:
+                    printf("%*svt_const: %d\n", indent_width, indent, (int32_t)vt->constant.value);
+                    break;
+                case VT_SUB_CONST_LONG:
+                    printf("%*svt_const: %ld\n", indent_width, indent, (int64_t)vt->constant.value);
+                    break;
+            }
             break;
         }
 
@@ -160,10 +167,26 @@ value_trace_t *stringutils_isempty(value_trace_t *vt, test_method_t *method) {
     return next;
 }
 
+value_trace_t *string_length(value_trace_t *vt, test_method_t *method) {
+    value_trace_t *value = vt_new(VT_UNKNOWN);
+    value_trace_t *next = vt->invoke.args[0];
+    if(vt->value == NULL) {
+        perror("String length value is null");
+        abort();
+    }
+    value->kind = VT_STRING;
+    char buffer[100];
+    sprintf(buffer, "Util.randomStringByLen(%d)", (int32_t)vt->value->constant.value);
+    value->string.value = strdup(buffer);
+    next->value = value;
+    return next;
+}
+
 void register_vt_back_stmts() {
     if(g_vt_back_stmts == NULL) g_vt_back_stmts = arraylist_new(100);
 
     register_vt_back_stmt("org/apache/commons/lang3/StringUtils", "isEmpty", "(Ljava/lang/CharSequence;)Z", stringutils_isempty);
+    register_vt_back_stmt("java/lang/String", "length", "()I", string_length);
 }
 
 value_trace_back_fn find_vt_back_fn(const char *class_name, const char *method_name, const char *descriptor) {
@@ -184,6 +207,53 @@ char *get_value(value_trace_t *value) {
             return value->string.value;
     }
     return "null";
+}
+
+/**
+ * value_trace_t 是否是常量，不一定是常量，null也算是
+ */
+int is_vt_const(value_trace_t *vt) {
+    return vt->kind == VT_CONST
+        || vt->kind == VT_NULL
+        || vt->kind == VT_NOTNULL;
+}
+
+int is_expr_equal(expr_t *left, expr_t *right) {
+    if(left->kind == right->kind) {
+        switch(left->kind) {
+            case EXPR_METHOD_CALL: {
+                int equal = strcmp(left->method_call->method, right->method_call->method);
+                if(equal == 0) {
+                    equal = (left->method_call->field == NULL && right->method_call->field == NULL)
+                        || strcmp(left->method_call->field, right->method_call->field) == 0;
+                }
+                return equal;
+            }
+        }
+    }
+    return 0;
+}
+
+void add_test_method_body(arraylist *body, stmt_t *stmt) {
+    // 需要去重
+    for(size_t i=0;i<body->size;i++) {
+        stmt_t *tmp = arraylist_get(body, i);
+        if(tmp->kind == stmt->kind) {
+            switch(tmp->kind) {
+                case STMT_EXPR: {
+                    expr_t *tmp_expr = tmp->expr->expr;
+                    expr_t *stmt_expr = stmt->expr->expr;
+                    if(is_expr_equal(tmp->expr->expr, stmt->expr->expr) == 1) {
+                        stmt_t *old = (stmt_t*)arraylist_set(body, i, stmt);
+                        stmt_free(old);
+                        return;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    arraylist_add(body, stmt);
 }
 
 void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
@@ -213,7 +283,7 @@ void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
 
                     stmt_t *stmt = stmt_new(STMT_EXPR);
                     stmt->expr = stmt_expr;
-                    arraylist_add(test_method->body, stmt);
+                    add_test_method_body(test_method->body, stmt);
                 }
                 else {
                     printf("unknown back code, invoke: %s\n", method_name);
@@ -221,6 +291,28 @@ void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
 
                 free(method_name);
             }
+            break;
+        }
+        case VT_COMPARE: {
+            value_trace_t *left_vt = vt->compare.left;
+            value_trace_t *right_vt = vt->compare.right;
+
+
+            // 一个作为变量，一个作为值
+            value_trace_t *call = NULL;
+            value_trace_t *value = NULL;
+
+            if(is_vt_const(right_vt)) {
+                value = right_vt;
+                call = left_vt;
+            }else {
+                value = left_vt;
+                call = right_vt;
+            }
+
+            call->value = value;
+            value_trace_back_code(call, test_method);
+
             break;
         }
     }

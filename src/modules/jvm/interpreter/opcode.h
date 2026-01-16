@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../utils/bytes.h"
+
 typedef enum {
     // Constants
     OPCODE_nop = 0x00,  // 00 
@@ -228,3 +230,6 @@ typedef enum {
     OPCODE_impdep1 = 0xfe,     // 254 
     OPCODE_impdep2 = 0xff,     // 255 
 } opcode_e;
+
+
+char *opcode_to_string(u2 opcode);

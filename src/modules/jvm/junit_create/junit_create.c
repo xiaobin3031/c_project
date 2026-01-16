@@ -177,6 +177,16 @@ int is_test_method_finish(test_method_t *test_method, frame_t *frame) {
     return 1;
 }
 
+void fill_act_call_response(char *descriptor, char *test_method_name, method_call_expr_t *mc_expr) {
+    char *ptr = descriptor;
+    while(*ptr && *ptr != ')') ptr++;
+    if(*ptr == ')') ptr++;
+
+    if(*ptr) {
+        
+    }
+}
+
 void create_junit_test_class(
     const char *src_class_dir,
     const char *dest_class_dir,
@@ -225,7 +235,8 @@ void create_junit_test_class(
                 if(method->access_flags & METHOD_ACC_PUBLIC && *method->name != '<') {
                     sprintf(act_call_buffer, "this.%s.%s", inject_field_name, method->name);
                     method_call_expr_t *act_call_expr = method_call_expr_new(NULL, act_call_buffer);
-                    test_method_t *test_method = test_method_new(method->name, "void");
+                    // 计算返回值
+                    fill_act_call_response(method->descriptor, method->name, act_call_expr);
                     arraylist *arg_init_stmts = parameters_init_stmts(method->descriptor);
                     frame_t *frame = frame_new(method, NULL);
                     // act call
@@ -250,7 +261,7 @@ void create_junit_test_class(
                     int arg_index = arg_init_stmts->size + 1;
                     while(1) {
                         sprintf(name_buffer, "%s_%d", method->name, name_index);
-                        test_method_t *test_method = test_method_new(method->name, "void");
+                        test_method_t *test_method = test_method_new(name_buffer, "void");
                         test_method->act_call = act_call_stmt;
                         test_method->local_var_index = &arg_index;
                         test_method->all_ifs = all_ifs;
@@ -293,13 +304,27 @@ void create_junit_test_class(
                             break;
                         }
 
+                        // 设置if条件的覆盖情况，从最后一个if节点开始累加，因为初始值是0，累加到1，就走到else分支，累加到2就遍历前一个if节点
+                        int index = ifs->size - 1;
+                        while(index >= 0) {
+                            if_t *ift = arraylist_get(ifs, index);
+                            ift->taken++;
+                            if(ift->taken == 2) {
+                                index--;
+                            }else{
+                                break;
+                            }
+                        }
+
                         frame->pc = 0;
                         frame->sp = 0;
 
-                        name_index++;
-
                         // todo  测试
-                        break;
+                        if(name_index == 3) {
+                            break;
+                        }
+
+                        name_index++;
                     }
 
                     // todo  测试

@@ -221,7 +221,7 @@ static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char 
 /**
  * 记录比较节点
  */
-static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_name, frame_t *frame) {
+static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_name, frame_t *frame, u2 opcode) {
     // 从之前的记录中找到if
     arraylist *allifs = frame->test_method->all_ifs;
     if_t *ift = NULL;
@@ -241,7 +241,7 @@ static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_n
         arraylist_add(allifs, ift);
     }
 
-    value_trace_t *vt = vt_compare_new(frame->pc, slot->vt, slot2->vt);
+    value_trace_t *vt = vt_compare_new(opcode, slot->vt, slot2->vt);
     ift->vt = vt;
 
     arraylist_add(frame->test_method->if_branchs, ift);
@@ -260,7 +260,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     while(frame->pc < code_length) {
         opcode = codes[frame->pc];
-        printf("opcode: %d\n", opcode);
+        printf("opcode: %d %s\n", opcode, opcode_to_string(opcode));
         switch(opcode) {
             // Constants
             case OPCODE_nop: {   // 0x00,  // 00 
@@ -342,7 +342,11 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_bipush: {   // 0x10,  // 16 
                 int32_t bb = (int32_t)codes[frame->pc+1];
-                push(frame)->bits = (uint32_t)bb;
+                printf("bipush: %d\n", bb);
+                slot_t *slot = push(frame);
+                slot->bits = (uint32_t)bb;
+                slot->vt = vt_const_new(codes[frame->pc+1]);
+                slot->vt->constant.sub_kind = VT_SUB_CONST_INT;
                 frame->pc += 2;
                 break;
             }
@@ -1058,8 +1062,10 @@ void exec_instruction(jvm_thread_t *thread) {
                 slot_t *slot = pop(frame);
                 if_t *ift = record_branch(slot, frame->test_method, "ifne", frame->pc);
                 if(ift->taken == 0) {
+                    ift->vt->value = vt_const_new(1);
                     go_to_by_index(frame);
                 }else{
+                    ift->vt->value = vt_const_new(0);
                     frame->pc += 3;
                 }
                 break;
@@ -1107,7 +1113,7 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_if_icmpeq: {   // 0x9f,       // 159 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpeq", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpeq", frame, opcode);
                 if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1118,7 +1124,7 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_if_icmpne: {   // 0xa0,       // 160 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpne", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpne", frame, opcode);
                 if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1129,7 +1135,7 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_if_icmplt: {   // 0xa1,       // 161 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmplt", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmplt", frame, opcode);
                 if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1140,7 +1146,7 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_if_icmpge: {   // 0xa2,       // 162 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpge", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpge", frame, opcode);
                 if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1151,7 +1157,7 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_if_icmpgt: {   // 0xa3,       // 163 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpgt", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpgt", frame, opcode);
                 if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1162,7 +1168,7 @@ void exec_instruction(jvm_thread_t *thread) {
             case OPCODE_if_icmple: {   // 0xa4,       // 164 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmple", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmple", frame, opcode);
                 if(ift->taken == 0) {
                     go_to_by_index(frame);
                 }else{
@@ -1176,7 +1182,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 int16_t index = (int16_t)((high << 8) | low);
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "acmpeq", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "acmpeq", frame, opcode);
                 if(ift->taken == 0) {
                     frame->pc += index;
                 }else{
@@ -1190,15 +1196,13 @@ void exec_instruction(jvm_thread_t *thread) {
                 int16_t index = (int16_t)((high << 8) | low);
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "acmpne", frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "acmpne", frame, opcode);
                 if(ift->taken == 0) {
                     frame->pc += index;
                 }else{
                     frame->pc += 3;
                 }
                 break;
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
             }
             // References
             case OPCODE_getstatic: {   // 0xb2,       // 178
@@ -1307,22 +1311,31 @@ void exec_instruction(jvm_thread_t *thread) {
                 }
                 // 把this pop出来
                 slot_t *this = pop(frame);
+                if(args == NULL && this->vt != NULL && this->vt->kind == VT_INVOKE) {
+                    slot_count = 1;
+                    args = calloc(1, sizeof(value_trace_t *));
+                    args[0] = this->vt;
+                }
 
                 // slot_t *stack_slot = pop(frame);
                 printf("invokevirtual: %s %s %s\n", call_method->klass->class_name, call_method->name, call_method->descriptor);
                 // test_field_t *test_field = stack_slot->test_field;
                 // printf("field: %s %s\n", test_field->name, test_field->type);
+
+                // 这里不一定是返回值的，也有可能是上一个方法的返回值被调用
+                value_trace_t *vt_invoke = vt_invoke_new(call_method, slot_count, args);
+                if(this->test_field) {
+                    vt_invoke->invoke.field_name = this->test_field->name;
+                    vt_invoke->invoke.call_from_test_field = 1;
+                }
                 if(call_method->return_slot_count > 0) {
-                    value_trace_t *vt_invoke = vt_invoke_new(call_method, slot_count, args);
-                    if(this->test_field) {
-                        vt_invoke->invoke.field_name = this->test_field->name;
-                        vt_invoke->invoke.call_from_test_field = 1;
-                    }
                     slot_t *return_slot = push(frame);
                     return_slot->vt = vt_invoke;
                     for(int i = 0; i < call_method->return_slot_count - 1; i++) {
                         push(frame);
                     }
+                }else{
+                    this->vt = vt_invoke;
                 }
                 
                 // if(run_method(thread, index, frame, 0) == 1) return;

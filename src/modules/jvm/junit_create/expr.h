@@ -50,6 +50,10 @@ typedef struct {
     const char *field;
     const char *method;
     arraylist *args;
+
+    // 返回值信息
+    const char *res_type;
+    const char *res_arg;
 } method_call_expr_t;
 
 struct expr_t {
