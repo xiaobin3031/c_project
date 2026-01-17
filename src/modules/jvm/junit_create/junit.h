@@ -20,6 +20,9 @@ typedef struct {
     // 已经处理的if逻辑值，0 进if逻辑，1 进else逻辑，2 跳出逻辑
     int taken;
     value_trace_t *vt;
+
+    // 走过的pc的记录，防止if中的其他条件再走一次，比如if ( A or B)，这个时候B可以不用覆盖了
+    int get_pcs[2];
 } if_t;
 
 struct test_method_t {
@@ -42,6 +45,9 @@ struct test_method_t {
 
     // pc跑到过结束
     int pc_has_reach_end;
+
+    // 方法短路，说明本次方法已经跑过了
+    int short_circuit;
 };
 
 typedef struct {

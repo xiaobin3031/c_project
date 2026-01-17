@@ -37,5 +37,7 @@ if_t *if_new(u2 pc) {
     if_t *if_ = calloc(1, sizeof(if_t));
     if_->pc = pc;
     if_->taken = 0;
+    if_->get_pcs[0] = -1;
+    if_->get_pcs[1] = -1;
     return if_;
 }

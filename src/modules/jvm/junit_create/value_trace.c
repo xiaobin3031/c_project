@@ -81,7 +81,7 @@ void print_value_trace(value_trace_t *vt, int depth) {
                     printf("%*svt_const: %d\n", indent_width, indent, (int32_t)vt->constant.value);
                     break;
                 case VT_SUB_CONST_LONG:
-                    printf("%*svt_const: %ld\n", indent_width, indent, (int64_t)vt->constant.value);
+                    printf("%*svt_const: %lld\n", indent_width, indent, (int64_t)vt->constant.value);
                     break;
             }
             break;

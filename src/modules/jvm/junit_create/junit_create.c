@@ -277,50 +277,55 @@ void create_junit_test_class(
 
                         push_frame(thread, frame);
                         interpret(thread);
-
-                        arraylist *if_branchs = test_method->if_branchs;
-                        for(size_t i = 0;i<if_branchs->size;i++) {
-                            if_t *ift = (if_t*)arraylist_get(if_branchs, i);
-                            printf("\n\nprint value trace: %d %s\n", i, ift->if_name);
-                            print_value_trace(ift->vt, 0);
-                        }
-
                         // 搜集结果
-                        printf("interpret end\n");
+                        printf("interpret end\n\n");
 
-                        // 将if转成代码
-                        arraylist *ifs = test_method->if_branchs;
-                        for(size_t i = 0;i<ifs->size;i++) {
-                            if_t *ift = arraylist_get(ifs, i);
-                            value_trace_back_code(ift->vt, test_method);
-                        }
+                        if(test_method->short_circuit == 0) {
+                            arraylist *if_branchs = test_method->if_branchs;
+                            for(size_t i = 0;i<if_branchs->size;i++) {
+                                if_t *ift = (if_t*)arraylist_get(if_branchs, i);
+                                printf("print value trace: %d %s taken: %d\n", i, ift->if_name, ift->taken);
+                                print_value_trace(ift->vt, 0);
+                            }
+                            printf("\n\n\n");
 
-                        // 设置结束条件
-                        if(is_frame_reach_end(frame) == 1) {
-                            test_method->pc_has_reach_end = 1;
-                        }
-                        if(is_test_method_finish(test_method, frame) == 1) {
-                            // 方法都覆盖了，退出，遍历下一个方法
-                            break;
-                        }
 
-                        // 设置if条件的覆盖情况，从最后一个if节点开始累加，因为初始值是0，累加到1，就走到else分支，累加到2就遍历前一个if节点
-                        int index = ifs->size - 1;
-                        while(index >= 0) {
-                            if_t *ift = arraylist_get(ifs, index);
-                            ift->taken++;
-                            if(ift->taken == 2) {
-                                index--;
-                            }else{
+                            // 将if转成代码
+                            arraylist *ifs = test_method->if_branchs;
+                            for(size_t i = 0;i<ifs->size;i++) {
+                                if_t *ift = arraylist_get(ifs, i);
+                                value_trace_back_code(ift->vt, test_method);
+                            }
+
+                            // 设置结束条件
+                            if(is_frame_reach_end(frame) == 1) {
+                                test_method->pc_has_reach_end = 1;
+                            }
+                            if(is_test_method_finish(test_method, frame) == 1) {
+                                // 方法都覆盖了，退出，遍历下一个方法
                                 break;
                             }
+
+                            // 设置if条件的覆盖情况，从最后一个if节点开始累加，因为初始值是0，累加到1，就走到else分支，累加到2就遍历前一个if节点
+                            int index = ifs->size - 1;
+                            while(index >= 0) {
+                                if_t *ift = arraylist_get(ifs, index);
+                                ift->taken++;
+                                if(ift->taken == 2) {
+                                    index--;
+                                }else{
+                                    break;
+                                }
+                            }
+                        }else{
+                            printf("short circuit, test_method_name: %s\n", name_buffer);
                         }
 
                         frame->pc = 0;
                         frame->sp = 0;
 
                         // todo  测试
-                        if(name_index == 3) {
+                        if(name_index == 4) {
                             break;
                         }
 

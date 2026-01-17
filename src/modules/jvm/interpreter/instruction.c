@@ -137,6 +137,14 @@ static void go_to_by_index(frame_t *frame) {
     frame->pc += index;
 }
 
+static u2 get_new_pc(frame_t *frame) {
+    rt_code_t *rt_code = frame->method->code;
+    u1 bb1 = rt_code->codes[frame->pc+1];
+    u1 bb2 = rt_code->codes[frame->pc+2];
+    int16_t index = (int16_t)((bb1 << 8) | bb2);
+    return frame->pc + index;
+}
+
 static int is_class_assignable(class_t *from, class_t *to) {
     if(to->access_flags && CLASS_ACC_INTERFACE) {
         // from实现了to接口
@@ -191,8 +199,10 @@ static void pop_stack(frame_t *frame, u2 index) {
 
 /**
  * 记录分支信息
+ * @param ok_pc taken == 0
+ * @param fail_pc taken == 1
  */
-static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char *if_name, u2 pc) {
+static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char *if_name, u2 pc, u2 ok_pc, u2 fail_pc) {
     // 从之前的记录中找到if
     arraylist *allifs = test_method->all_ifs;
     if_t *ift = NULL;
@@ -213,6 +223,34 @@ static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char 
     }
     ift->vt = slot->vt;
 
+    if(ift->taken == 0) {
+        int match = 0;
+        for(size_t i=0;i<allifs->size;i++) {
+            if_t *tmp = arraylist_get(allifs, i);
+            if(tmp->pc != pc && tmp->get_pcs[0] == ok_pc) {
+                match = 1;
+                break;
+            }
+        }
+        if(match == 1) {
+            // 0已经有人走过了，该走1了
+            ift->taken = 1;
+        }
+    }
+    if(ift->taken == 1) {
+        int match = 0;
+        for(size_t i=0;i<allifs->size;i++) {
+            if_t *tmp = arraylist_get(allifs, i);
+            if(tmp->pc != pc && tmp->get_pcs[1] == fail_pc) {
+                match = 1;
+                break;
+            }
+        }
+        if(match == 1) {
+            // 1已经有人走过了，该结束了
+            ift->taken = 2;
+        }
+    }
     arraylist_add(test_method->if_branchs, ift);
     return ift;
 }
@@ -221,7 +259,7 @@ static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char 
 /**
  * 记录比较节点
  */
-static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_name, frame_t *frame, u2 opcode) {
+static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_name, frame_t *frame, u2 opcode, u2 ok_pc, u2 fail_pc) {
     // 从之前的记录中找到if
     arraylist *allifs = frame->test_method->all_ifs;
     if_t *ift = NULL;
@@ -243,6 +281,35 @@ static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_n
 
     value_trace_t *vt = vt_compare_new(opcode, slot->vt, slot2->vt);
     ift->vt = vt;
+
+    if(ift->taken == 0) {
+    int match = 0;
+    for(size_t i=0;i<allifs->size;i++) {
+        if_t *tmp = arraylist_get(allifs, i);
+        if(tmp->pc != frame->pc && tmp->get_pcs[0] == ok_pc) {
+            match = 1;
+            break;
+        }
+    }
+    if(match == 1) {
+        // 0已经有人走过了，该走1了
+        ift->taken = 1;
+    }
+}
+if(ift->taken == 1) {
+    int match = 0;
+    for(size_t i=0;i<allifs->size;i++) {
+        if_t *tmp = arraylist_get(allifs, i);
+        if(tmp->pc != frame->pc && tmp->get_pcs[1] == fail_pc) {
+            match = 1;
+            break;
+        }
+    }
+    if(match == 1) {
+        // 1已经有人走过了，该结束了
+        ift->taken = 2;
+    }
+}
 
     arraylist_add(frame->test_method->if_branchs, ift);
     return ift;
@@ -342,7 +409,6 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_bipush: {   // 0x10,  // 16 
                 int32_t bb = (int32_t)codes[frame->pc+1];
-                printf("bipush: %d\n", bb);
                 slot_t *slot = push(frame);
                 slot->bits = (uint32_t)bb;
                 slot->vt = vt_const_new(codes[frame->pc+1]);
@@ -1048,160 +1114,225 @@ void exec_instruction(jvm_thread_t *thread) {
             }
             case OPCODE_ifeq: {   // 0x99,       // 153 
                 slot_t *slot = pop(frame);
-                if_t *ift = record_branch(slot, frame->test_method, "ifeq", frame->pc);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifeq", frame->pc, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
                     ift->vt->value = vt_const_new(0);
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     ift->vt->value = vt_const_new(1);
                     frame->pc += 3;
+                }else{
+                    // 已经结束了，返回
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_ifne: {   // 0x9a,       // 154 
                 slot_t *slot = pop(frame);
-                if_t *ift = record_branch(slot, frame->test_method, "ifne", frame->pc);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifne", frame->pc, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
                     ift->vt->value = vt_const_new(1);
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     ift->vt->value = vt_const_new(0);
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_iflt: {   // 0x9b,       // 155 
                 slot_t *slot = pop(frame);
-                if_t *ift = record_branch(slot, frame->test_method, "iflt", frame->pc);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "iflt", frame->pc, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_ifge: {   // 0x9c,       // 156 
                 slot_t *slot = pop(frame);
-                if_t *ift = record_branch(slot, frame->test_method, "ifge", frame->pc);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifge", frame->pc, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_ifgt: {   // 0x9d,       // 157 
                 slot_t *slot = pop(frame);
-                if_t *ift = record_branch(slot, frame->test_method, "ifgt", frame->pc);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifgt", frame->pc, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_ifle: {   // 0x9e,       // 158 
                 slot_t *slot = pop(frame);
-                if_t *ift = record_branch(slot, frame->test_method, "ifle", frame->pc);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifle", frame->pc, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_icmpeq: {   // 0x9f,       // 159 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpeq", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpeq", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_icmpne: {   // 0xa0,       // 160 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpne", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpne", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_icmplt: {   // 0xa1,       // 161 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmplt", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmplt", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_icmpge: {   // 0xa2,       // 162 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpge", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpge", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_icmpgt: {   // 0xa3,       // 163 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmpgt", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmpgt", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_icmple: {   // 0xa4,       // 164 
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "icmple", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "icmple", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    go_to_by_index(frame);
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_acmpeq: {   // 0xa5,       // 165 
-                u1 high = codes[frame->pc+1];
-                u1 low = codes[frame->pc+2];
-                int16_t index = (int16_t)((high << 8) | low);
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "acmpeq", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "acmpeq", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    frame->pc += index;
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_if_acmpne: {   // 0xa6,       // 166 
-                u1 high = codes[frame->pc+1];
-                u1 low = codes[frame->pc+2];
-                int16_t index = (int16_t)((high << 8) | low);
                 slot_t *slot2 = pop(frame);
                 slot_t *slot1 = pop(frame);
-                if_t *ift = record_compare_branch(slot1, slot2, "acmpne", frame, opcode);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_compare_branch(slot1, slot2, "acmpne", frame, opcode, ok_pc, frame->pc + 3);
                 if(ift->taken == 0) {
-                    frame->pc += index;
-                }else{
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
                     frame->pc += 3;
+                }else{
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             // References
