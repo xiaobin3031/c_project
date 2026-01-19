@@ -71,6 +71,11 @@ class_t *define_class(class_file_t *class_file) {
         klass->total_field_slots = total_field_slots;
     }
 
+    if(klass->access_flags & CLASS_ACC_ENUM) {
+        // 添加两个字段， String name 和 int ordinal
+        klass->total_field_slots += 2;
+    }
+
     // methods
     if(class_file->methods_count > 0) {
         klass->methods_count = class_file->methods_count;

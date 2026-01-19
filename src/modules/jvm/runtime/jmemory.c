@@ -27,6 +27,10 @@ void init_heap() {
 
 
 object_t *heap_alloc_object(class_t *klass) {
+    if(klass == NULL) {
+        printf("class is null");
+        abort();
+    }
     object_t *obj = calloc(1, sizeof(object_t));
     obj->klass = klass;
     obj->type = OBJ_TYPE_INSTANCE;

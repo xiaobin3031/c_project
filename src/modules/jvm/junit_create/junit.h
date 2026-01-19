@@ -3,9 +3,26 @@
 #include "../../../core/list/arraylist.h"
 #include "../utils/bytes.h"
 #include "stmt.h"
+#include "../project/project.h"
 
 typedef struct test_method_t test_method_t;
 typedef struct value_trace_t value_trace_t;
+typedef struct if_t if_t;
+
+typedef enum  {
+    BODY_BRANCH_IF,
+    BODY_BRANCH_STMT,
+} body_branch_e;
+
+typedef struct {
+    body_branch_e kind;
+
+    union {
+        if_t *if_branch;
+        stmt_t *stmt;
+    };
+} body_branch_t;
+
 
 typedef struct {
     char *name;
@@ -13,7 +30,7 @@ typedef struct {
     arraylist *annos;
 } test_field_t;
 
-typedef struct {
+struct if_t {
     // 当前if所在的pc
     u2 pc;
     char *if_name;
@@ -23,7 +40,7 @@ typedef struct {
 
     // 走过的pc的记录，防止if中的其他条件再走一次，比如if ( A or B)，这个时候B可以不用覆盖了
     int get_pcs[2];
-} if_t;
+};
 
 struct test_method_t {
     char *name;
@@ -32,7 +49,7 @@ struct test_method_t {
     arraylist *body;
 
     // 拼凑变量的后缀
-    int *local_var_index;
+    int local_var_index;
     
     // 实际方法调用
     stmt_t *act_call;
@@ -40,8 +57,8 @@ struct test_method_t {
     // 方法的所有节点
     arraylist *all_ifs;
 
-    // 本次方法经历的所有if节点，用来反推结果值
-    arraylist *if_branchs;
+    // 方法节点
+    arraylist *branchs;
 
     // pc跑到过结束
     int pc_has_reach_end;
@@ -64,7 +81,7 @@ typedef struct {
 } test_class_t;
 
 void create_junit_test_class(
-    const char *src_class_dir,
+    project_t *project,
     const char *dest_class_dir,
     const char *new_package_name
 );
@@ -78,3 +95,5 @@ test_field_t *test_field_new(const char *name, const char *type);
 if_t *if_new(u2 pc);
 
 void print_test_class(test_class_t *test_class);
+
+char *get_test_method_field_arg(test_method_t *test_method);

@@ -13,6 +13,7 @@
 #include "../vm/classload.h"
 #include "stmt.h"
 #include "expr.h"
+#include "../project/project.h"
 #include <string.h>
 
 static char buffer[1024];
@@ -162,13 +163,13 @@ int is_frame_reach_end(frame_t *frame) {
  * 方法的所有节点是否都已经结束
  */
 int is_test_method_finish(test_method_t *test_method, frame_t *frame) {
-    arraylist *ifs = test_method->if_branchs;
     if(test_method->pc_has_reach_end == 0) {
         return 0;
     }
-    for(size_t i=0;i<ifs->size;i++) {
-        if_t *ift = arraylist_get(ifs, i);
-        if(ift->taken == 0) {
+    arraylist *branchs = test_method->branchs;
+    for(size_t i=0;i<branchs->size;i++) {
+        body_branch_t *branch = arraylist_get(branchs, i);
+        if(branch->kind == BODY_BRANCH_IF && branch->if_branch->taken == 0) {
             // 只要有一个节点没跑到，方法就还未覆盖
             return 0;
         }
@@ -188,11 +189,11 @@ void fill_act_call_response(char *descriptor, char *test_method_name, method_cal
 }
 
 void create_junit_test_class(
-    const char *src_class_dir,
+    project_t *project,
     const char *dest_class_dir,
     const char *new_package_name
 ) {
-    project_t *project = load_project(src_class_dir, NULL);
+    bootstrap(project);
     char act_call_buffer[1024];
     for(int i=0;i<project->class_file_source->size;i++) {
         class_file_source_t *source = arraylist_get(project->class_file_source, i);
@@ -258,12 +259,11 @@ void create_junit_test_class(
                     int name_index = 1;
                     char name_buffer[256];
                     arraylist *all_ifs = arraylist_new(10);
-                    int arg_index = arg_init_stmts->size + 1;
                     while(1) {
                         sprintf(name_buffer, "%s_%d", method->name, name_index);
                         test_method_t *test_method = test_method_new(name_buffer, "void");
                         test_method->act_call = act_call_stmt;
-                        test_method->local_var_index = &arg_index;
+                        test_method->local_var_index = arg_init_stmts->size + 1;
                         test_method->all_ifs = all_ifs;
                         arraylist_add(test_method->annos, "@Test");
                         arraylist_add(test_class->methods, test_method);
@@ -281,20 +281,25 @@ void create_junit_test_class(
                         printf("interpret end\n\n");
 
                         if(test_method->short_circuit == 0) {
-                            arraylist *if_branchs = test_method->if_branchs;
-                            for(size_t i = 0;i<if_branchs->size;i++) {
-                                if_t *ift = (if_t*)arraylist_get(if_branchs, i);
-                                printf("print value trace: %d %s taken: %d\n", i, ift->if_name, ift->taken);
-                                print_value_trace(ift->vt, 0);
+                            arraylist *branchs = test_method->branchs;
+                            for(size_t i = 0;i<branchs->size;i++) {
+                                body_branch_t *branch = (body_branch_t*)arraylist_get(branchs, i);
+                                if(branch->kind == BODY_BRANCH_IF) {
+                                    printf("print value trace: %d %s taken: %d\n", i, branch->if_branch->if_name, branch->if_branch->taken);
+                                    print_value_trace(branch->if_branch->vt, 0);
+                                }
                             }
                             printf("\n\n\n");
 
 
                             // 将if转成代码
-                            arraylist *ifs = test_method->if_branchs;
-                            for(size_t i = 0;i<ifs->size;i++) {
-                                if_t *ift = arraylist_get(ifs, i);
-                                value_trace_back_code(ift->vt, test_method);
+                            for(size_t i = 0;i<branchs->size;i++) {
+                                body_branch_t *branch = (body_branch_t*)arraylist_get(branchs, i);
+                                if(branch->kind == BODY_BRANCH_IF) {
+                                    value_trace_back_code(branch->if_branch->vt, test_method);
+                                }else if(branch->kind == BODY_BRANCH_STMT) {
+                                    arraylist_add(test_method->body, branch->stmt);
+                                }
                             }
 
                             // 设置结束条件
@@ -307,11 +312,12 @@ void create_junit_test_class(
                             }
 
                             // 设置if条件的覆盖情况，从最后一个if节点开始累加，因为初始值是0，累加到1，就走到else分支，累加到2就遍历前一个if节点
-                            int index = ifs->size - 1;
+                            int index = branchs->size - 1;
                             while(index >= 0) {
-                                if_t *ift = arraylist_get(ifs, index);
-                                ift->taken++;
-                                if(ift->taken == 2) {
+                                body_branch_t *branch = arraylist_get(branchs, index);
+                                if(branch->kind != BODY_BRANCH_IF) continue;
+                                branch->if_branch->taken++;
+                                if(branch->if_branch->taken == 2) {
                                     index--;
                                 }else{
                                     break;

@@ -9,6 +9,7 @@ typedef enum {
     EXPR_VAR,
     EXPR_NEW,
     EXPR_METHOD_CALL,
+    EXPR_MOCK_METHOD_CALL,
 } expr_kind_e;
 
 typedef enum {
@@ -42,7 +43,8 @@ typedef struct {
     char *type;
     char *name;
 
-    expr_t *init;
+    // 直接用字符串初始化
+    const char *init;
 } var_expr_t;
 
 typedef struct {
@@ -56,6 +58,15 @@ typedef struct {
     const char *res_arg;
 } method_call_expr_t;
 
+typedef struct {
+    arraylist *args;
+
+    union {
+        const char *mock_return;
+        const char *mock_throw;
+    };
+} mock_method_call_expr_t;
+
 struct expr_t {
 
     expr_kind_e kind;
@@ -63,6 +74,7 @@ struct expr_t {
         literal_expr_t *literal;
         var_expr_t *var;
         method_call_expr_t *method_call;
+        mock_method_call_expr_t *mock_method_call;
     };
 };
 

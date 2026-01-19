@@ -17,7 +17,7 @@
 #include <execinfo.h>
 #include <stdarg.h>
 
-static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char *message, ...) {
+void throw_error(jvm_thread_t *thread, enum run_error_e type, const char *message, ...) {
     va_list args;
 
     thread->error = error_new(type, NULL);
@@ -245,7 +245,10 @@ static if_t *record_branch(slot_t *slot, test_method_t *test_method, const char 
     //         ift->taken = 2;
     //     }
     // }
-    arraylist_add(test_method->if_branchs, ift);
+    body_branch_t *body_branch = calloc(1, sizeof(body_branch_t));
+    body_branch->kind = BODY_BRANCH_IF;
+    body_branch->if_branch = ift;
+    arraylist_add(test_method->branchs, body_branch);
     return ift;
 }
 
@@ -305,8 +308,16 @@ static if_t *record_compare_branch(slot_t *slot, slot_t *slot2, const char *if_n
     //     }
     // }
 
-    arraylist_add(frame->test_method->if_branchs, ift);
+    body_branch_t *body_branch = calloc(1, sizeof(body_branch_t));
+    body_branch->kind = BODY_BRANCH_IF;
+    body_branch->if_branch = ift;
+    arraylist_add(frame->test_method->branchs, body_branch);
     return ift;
+}
+
+static int opcode_is_store(u1 opcode) {
+    return opcode == OPCODE_istore || opcode == OPCODE_lstore || opcode == OPCODE_fstore || opcode == OPCODE_dstore || opcode == OPCODE_astore
+        || opcode == OPCODE_bastore || opcode == OPCODE_castore || opcode == OPCODE_sastore;
 }
 
 void exec_instruction(jvm_thread_t *thread) {
@@ -458,8 +469,19 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_ldc2_w: {   // 0x14,  // 20 
-            fprintf(stderr, "unimpleted opcode: %d\n", opcode);
-                            abort();
+                u2 high = codes[frame->pc+1];
+                u1 low = codes[frame->pc+2];
+                u2 index = (high << 8) | low;
+                rt_cp_entry_t *entry = entries + index;
+                if(entry->tag == RT_CONSTANT_Long) {
+                    push_long(frame, entry->number.long_value);
+                }else if(entry->tag == RT_CONSTANT_Double) {
+                    push_double(frame, entry->number.double_value);
+                }else {
+                    throw_error(thread, RUNTIME_ERROR_RuntimeException, "ldc2_w tag error, not long or double");
+                }
+                frame->pc += 3;
+                break;
             }
             // Loads
             case OPCODE_iload: {   // 0x15,     // 21 
@@ -1371,7 +1393,155 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 i1 = codes[frame->pc+1];
                 u1 i2 = codes[frame->pc+2];
                 u2 index = (i1 << 8) | i2;
+                frame->pc += 3;
                 field_t *target_field = resolve_field(thread, entries + index);
+                // 判断是否是mock过的
+                arraylist *test_fields = frame->test_class->fields;
+                test_field_t *match_field = NULL;
+                for(size_t i=0;i<test_fields->size;i++) {
+                    test_field_t *field = (test_field_t *)arraylist_get(test_fields, i);
+                    if(strcmp(field->name, target_field->name) == 0 && strcmp(field->type, target_field->descriptor) == 0) {
+                        match_field = field;
+                        break;
+                    }
+                }
+                if(match_field != NULL) {
+                    // 跳过其他的opcode，直接找到调用方法
+                    while(1) {
+                        skip_instruction(thread);
+                        opcode = codes[frame->pc];
+                        if(opcode == OPCODE_invokevirtual) {
+                            u2 high = codes[frame->pc+1];
+                            u2 low = codes[frame->pc+2];
+                            index = (high << 8) | low;
+                            method_t *call_method = resolve_method(thread, class, entries + index);
+                            if(call_method != NULL && strcmp(call_method->descriptor, match_field->type) == 0) {
+                                // 设置方法的参数
+                                char *ptr = call_method->descriptor + 1;
+                                mock_method_call_expr_t *expr_mock_mc = calloc(1, sizeof(mock_method_call_expr_t));
+                                arraylist *args = arraylist_new(2);
+                                char buffer[40];
+                                while(*ptr && *ptr != ')') {
+                                    switch(*ptr) {
+                                        case 'I':
+                                            arraylist_add(args, "anyInt()");
+                                            break;
+                                        case 'J': 
+                                            arraylist_add(args, "anyLong()");
+                                            break;
+                                        case 'F': 
+                                            arraylist_add(args, "anyFloat()");
+                                            break;
+                                        case 'D': 
+                                            arraylist_add(args, "anyDouble()");
+                                            break;
+                                        case 'B': 
+                                            arraylist_add(args, "anyByte()");
+                                            break;
+                                        case 'C': 
+                                            arraylist_add(args, "anyChar()");
+                                            break;
+                                        case 'S': 
+                                            arraylist_add(args, "anyShort()");
+                                            break;
+                                        case 'Z': 
+                                            arraylist_add(args, "anyBoolean()");
+                                            break;
+                                        case 'L': { 
+                                            char *simple_type = descriptor_to_simple_type(ptr);
+                                            sprintf(buffer, "any(%s.class)", simple_type);
+                                            arraylist_add(args, strdup(buffer));
+                                            ptr = strrchr(ptr, ';');
+                                            break;
+                                        }
+                                    }
+                                    ptr++;
+                                }
+
+                                // 跳过了方法执行
+                                // 判断是否需要创建变量
+                                opcode = codes[frame->pc + 4];
+                                if(opcode != OPCODE_pop) {
+                                    // 说明需要新建变量
+                                    if(*ptr == ')') {
+                                        ptr++;
+                                        var_expr_t *expr_init = var_expr_new(match_field->name);
+                                        switch(*ptr) {
+                                            case 'I':
+                                                expr_init->type = "int";
+                                                expr_init->init = "1";
+                                                break;
+                                            case 'J': 
+                                                expr_init->type = "long";
+                                                expr_init->init = "1L";
+                                                break;
+                                            case 'F': 
+                                                expr_init->type = "float";
+                                                expr_init->init = "1.0f";
+                                                break;
+                                            case 'D': 
+                                                expr_init->type = "double";
+                                                expr_init->init = "1.0d";
+                                                break;
+                                            case 'B': 
+                                                expr_init->type = "byte";
+                                                expr_init->init = "1";
+                                                break;
+                                            case 'C': 
+                                                expr_init->type = "char";
+                                                expr_init->init = "'1'";
+                                                break;
+                                            case 'S': 
+                                                expr_init->type = "short";
+                                                expr_init->init = "(short)1";
+                                                break;
+                                            case 'Z': 
+                                                expr_init->type = "boolean";
+                                                expr_init->init = "false";
+                                                break;
+                                            default: {
+                                                if(strcmp(ptr, "Ljava/lang/String;") == 0) {
+                                                    expr_init->type = "String";
+                                                    expr_init->init = "\"1\"";
+                                                }else if(strcmp(ptr, "Ljava/util/List;") == 0) {
+                                                    expr_init->type = "List";
+                                                    expr_init->init = "new ArrayList()";
+                                                }else if(strcmp(ptr, "Ljava/util/Map;") == 0) {
+                                                    expr_init->type = "Map";
+                                                    expr_init->init = "new HashMap()";
+                                                }else if(strcmp(ptr, "Ljava/util/Set;") == 0) {
+                                                    expr_init->type = "Set";
+                                                    expr_init->init = "new HashSet()";
+                                                }else if(strcmp(ptr, "Ljava/lang/Integer") == 0) {
+                                                    expr_init->type = "int";
+                                                    expr_init->init = "1";
+                                                }else if(strcmp(ptr, "Ljava/lang/Long") == 0) {
+                                                    expr_init->type = "long";
+                                                    expr_init->init = "1L";
+                                                }else if(strcmp(ptr, "Ljava/math/BigDecimal;") == 0) {
+                                                    expr_init->type = "BigDecimal";
+                                                    expr_init->init = "BigDecimal.valueOf(1)";
+                                                }
+                                                break;
+                                            }
+                                        }
+                                        expr_init->name = get_test_method_field_arg(frame->test_method);
+                                        expr_t *expr = expr_new(EXPR_VAR);
+                                        expr->var = expr_init;
+                                        expr_stmt_t *expr_stmt = expr_stmt_new(expr);
+                                        stmt_t *stmt = stmt_new(STMT_EXPR);
+                                        stmt->expr = expr_stmt;
+                                        body_branch_t *branch = calloc(1, sizeof(body_branch_t));
+                                        branch->kind = BODY_BRANCH_STMT;
+                                        branch->stmt = stmt;
+                                        arraylist_add(frame->test_method->body, branch);
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
                 pop(frame);
                 // 模拟的情况下，这里的ref可能是个null
                 // object_t *ref = pop(frame)->ref;
@@ -1386,7 +1556,6 @@ void exec_instruction(jvm_thread_t *thread) {
                     slot->ref = field_slot->ref;
                 }
 
-                frame->pc += 3;
                 break;
             }
             case OPCODE_putfield: {   // 0xb5,       // 181

@@ -10,7 +10,7 @@ test_method_t *test_method_new(const char *name, const char *return_type) {
     method->return_type = strdup(return_type);
     method->annos = arraylist_new(2);
     method->body = arraylist_new(10);
-    method->if_branchs = arraylist_new(10);
+    method->branchs = arraylist_new(10);
     return method;
 }
 
@@ -40,4 +40,11 @@ if_t *if_new(u2 pc) {
     if_->get_pcs[0] = -1;
     if_->get_pcs[1] = -1;
     return if_;
+}
+
+
+char *get_test_method_field_arg(test_method_t *test_method) {
+    char buffer[200];
+    sprintf(buffer, "localArg%d", test_method->local_var_index++);
+    return strdup(buffer);
 }

@@ -60,11 +60,48 @@ class_t *load_class(const char *class_name, jvm_thread_t *thread) {
     // load from cache
     class_t *class = find_class(class_name);
     if(class == NULL) {
+        // printf("load class name: %s, g_class_list.size: %ld\n", class_file, g_class_list->size);
+        class_file_source_t *class_file_source = NULL;
+        arraylist *list = g_project->class_file_source;
+        for(size_t i = 0; i < list->size; i++) {
+            class_file_source_t *source = list->values[i];
+            if(strcmp(source->name, class_name) == 0) {
+                class_file_source = source;
+                break;
+            }
+        }
+        if(class_file_source != NULL) {
+            class_file_t *class_file = NULL;
+            if(class_file_source->source == CLASS_FILE_SOURCE_FILE) {
+                class_file = read_class_file(class_file_source->path);
+            } else if(class_file_source->source == CLASS_FILE_SOURCE_JMOD) {
+                size_t size;
+                void* data = mz_zip_reader_extract_to_heap(g_project->jmod_base_zip, class_file_source->index, &size, 0);
+                class_file_bytes_t *class_bytes = class_bytes_new((u1*)data, size);
+                class_file = read_by_class_bytes(class_bytes);
+                free(class_bytes);
+                free(data);
+            }
+            class = define_class(class_file);
+            if(class) {
+                arraylist_add(g_class_list, class);
+                class->state = CLASS_LOADED;
+            }
+        }
+    }
+    if(class == NULL){
+        // fprintf(stderr, "ClassFormatError: %s\n", class_name);
+        // abort();
         class = calloc(1, sizeof(class_t));
         class->class_name = strdup(class_name);
         class->class_simple_name = descriptor_to_simple_type(class_name);
         arraylist_add(g_class_list, class);
         class->state = CLASS_LOADED;
+    }
+    if(class->state == CLASS_ERRONEOUS) {
+        thread->error = error_new(RUNTIME_ERROR_NoClassDefFoundError, "Class is in erroneous state");
+    }else{
+        link_class(thread, class);
     }
     
     return class;
@@ -147,6 +184,7 @@ void link_class(jvm_thread_t *thread, class_t *class) {
         class->super = load_class(class->super_class_name, thread);
         free(class->super_class_name);
         class->super_class_name = NULL;
+        class->total_field_slots += class->super->total_field_slots;
     }
 
     if(class->interface_class_names != NULL) {
