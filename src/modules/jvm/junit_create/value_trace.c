@@ -1,6 +1,7 @@
 #include "value_trace.h"
 #include "../runtime/class.h"
 #include "../../../core/list/arraylist.h"
+#include "../interpreter/opcode.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -213,9 +214,7 @@ char *get_value(value_trace_t *value) {
  * value_trace_t 是否是常量，不一定是常量，null也算是
  */
 int is_vt_const(value_trace_t *vt) {
-    return vt->kind == VT_CONST
-        || vt->kind == VT_NULL
-        || vt->kind == VT_NOTNULL;
+    return vt->kind == VT_CONST;
 }
 
 int is_expr_equal(expr_t *left, expr_t *right) {
@@ -302,14 +301,29 @@ void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
             value_trace_t *call = NULL;
             value_trace_t *value = NULL;
 
-            if(is_vt_const(right_vt)) {
-                value = right_vt;
-                call = left_vt;
-            }else {
+            if(is_vt_const(left_vt)) {
                 value = left_vt;
                 call = right_vt;
+            }else if(is_vt_const(right_vt)){
+                value = right_vt;
+                call = left_vt;
+            }else{
+                // 都不是常量，只能把其中一个解析成常量
+                printf("unknown back code, compare: %s, left-kind: %d, right-kind: %d\n", opcode_to_string(vt->compare.opcode), left_vt->kind, right_vt->kind);
+                // 强制需要覆盖
+                abort();
             }
 
+            // 再设置value的值
+            if(vt->compare.opcode == OPCODE_if_icmpeq) {
+                if(value->constant.value != 0) {
+                    value->constant.value = value->constant.value + 1;
+                }
+            }else{
+                printf("unknown back code, compare: %s\n", opcode_to_string(vt->compare.opcode));
+                // 强制需要覆盖
+                abort();
+            }
             call->value = value;
             value_trace_back_code(call, test_method);
 

@@ -325,7 +325,7 @@ void create_junit_test_class(
                         frame->sp = 0;
 
                         // todo  测试
-                        if(name_index == 4) {
+                        if(name_index == 2) {
                             break;
                         }
 

@@ -28,6 +28,7 @@ static void throw_error(jvm_thread_t *thread, enum run_error_e type, const char 
         va_end(args);
 
         thread->error->message = formatted_message;
+        printf("thread run error: %s\n", formatted_message);
     }
 }
 
@@ -66,8 +67,9 @@ static field_t *resolve_field(jvm_thread_t *thread, rt_cp_entry_t *entry) {
         target_class = target_class->super;
     }
 
-    printf("field not found: %s %s\n", entry->sym.class_name, entry->sym.name);
-    abort();
+    // printf("field not found: %s %s\n", entry->sym.class_name, entry->sym.name);
+    // abort();
+    return NULL;
 }
 
 static method_t *resolve_method(jvm_thread_t *thread, class_t *class, rt_cp_entry_t *entry) {
@@ -319,7 +321,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
     while(frame->pc < code_length) {
         opcode = codes[frame->pc];
-        printf("opcode: %d %s\n", opcode, opcode_to_string(opcode));
+        printf("%d: opcode: %d %s\n", frame->pc, opcode, opcode_to_string(opcode));
         switch(opcode) {
             // Constants
             case OPCODE_nop: {   // 0x00,  // 00 
@@ -1370,11 +1372,13 @@ void exec_instruction(jvm_thread_t *thread) {
                 u1 i2 = codes[frame->pc+2];
                 u2 index = (i1 << 8) | i2;
                 field_t *target_field = resolve_field(thread, entries + index);
-                object_t *ref = pop(frame)->ref;
-                if(ref == NULL) {
-                    throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
-                    return;
-                }
+                pop(frame);
+                // 模拟的情况下，这里的ref可能是个null
+                // object_t *ref = pop(frame)->ref;
+                // if(ref == NULL) {
+                //     throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
+                //     return;
+                // }
                 for(int i=target_field->slot_count - 1;i>= 0;i--) {
                     slot_t *field_slot = target_field->slots + i;
                     slot_t *slot = push(frame);
