@@ -1425,118 +1425,140 @@ void exec_instruction(jvm_thread_t *thread) {
                                     switch(*ptr) {
                                         case 'I':
                                             arraylist_add(args, "anyInt()");
+                                            pop(frame);
                                             break;
                                         case 'J': 
                                             arraylist_add(args, "anyLong()");
+                                            pop(frame);
+                                            pop(frame);
                                             break;
                                         case 'F': 
                                             arraylist_add(args, "anyFloat()");
+                                            pop(frame);
                                             break;
                                         case 'D': 
                                             arraylist_add(args, "anyDouble()");
+                                            pop(frame);
+                                            pop(frame);
                                             break;
                                         case 'B': 
                                             arraylist_add(args, "anyByte()");
+                                            pop(frame);
                                             break;
                                         case 'C': 
                                             arraylist_add(args, "anyChar()");
+                                            pop(frame);
                                             break;
                                         case 'S': 
                                             arraylist_add(args, "anyShort()");
+                                            pop(frame);
                                             break;
                                         case 'Z': 
                                             arraylist_add(args, "anyBoolean()");
+                                            pop(frame);
                                             break;
                                         case 'L': { 
                                             char *simple_type = descriptor_to_simple_type(ptr);
                                             sprintf(buffer, "any(%s.class)", simple_type);
                                             arraylist_add(args, strdup(buffer));
                                             ptr = strrchr(ptr, ';');
+                                            pop(frame);
                                             break;
                                         }
                                     }
                                     ptr++;
                                 }
 
+                                // pop this
+                                pop(frame);
+
                                 // 跳过了方法执行
                                 // 判断是否需要创建变量
                                 opcode = codes[frame->pc + 4];
-                                if(opcode != OPCODE_pop) {
-                                    // 说明需要新建变量
-                                    if(*ptr == ')') {
-                                        ptr++;
-                                        var_expr_t *expr_init = var_expr_new(match_field->name);
-                                        switch(*ptr) {
-                                            case 'I':
-                                                expr_init->type = "int";
-                                                expr_init->init = "1";
-                                                break;
-                                            case 'J': 
-                                                expr_init->type = "long";
-                                                expr_init->init = "1L";
-                                                break;
-                                            case 'F': 
-                                                expr_init->type = "float";
-                                                expr_init->init = "1.0f";
-                                                break;
-                                            case 'D': 
-                                                expr_init->type = "double";
-                                                expr_init->init = "1.0d";
-                                                break;
-                                            case 'B': 
-                                                expr_init->type = "byte";
-                                                expr_init->init = "1";
-                                                break;
-                                            case 'C': 
-                                                expr_init->type = "char";
-                                                expr_init->init = "'1'";
-                                                break;
-                                            case 'S': 
-                                                expr_init->type = "short";
-                                                expr_init->init = "(short)1";
-                                                break;
-                                            case 'Z': 
-                                                expr_init->type = "boolean";
-                                                expr_init->init = "false";
-                                                break;
-                                            default: {
-                                                if(strcmp(ptr, "Ljava/lang/String;") == 0) {
-                                                    expr_init->type = "String";
-                                                    expr_init->init = "\"1\"";
-                                                }else if(strcmp(ptr, "Ljava/util/List;") == 0) {
-                                                    expr_init->type = "List";
-                                                    expr_init->init = "new ArrayList()";
-                                                }else if(strcmp(ptr, "Ljava/util/Map;") == 0) {
-                                                    expr_init->type = "Map";
-                                                    expr_init->init = "new HashMap()";
-                                                }else if(strcmp(ptr, "Ljava/util/Set;") == 0) {
-                                                    expr_init->type = "Set";
-                                                    expr_init->init = "new HashSet()";
-                                                }else if(strcmp(ptr, "Ljava/lang/Integer") == 0) {
+                                if(call_method->return_slot_count> 0) {
+                                    if(opcode != OPCODE_pop) {
+                                        // 有返回值，但不是直接pop，说明新建了变量
+                                        if(*ptr == ')') {
+                                            ptr++;
+                                            var_expr_t *expr_init = var_expr_new(match_field->name);
+                                            switch(*ptr) {
+                                                case 'I':
                                                     expr_init->type = "int";
                                                     expr_init->init = "1";
-                                                }else if(strcmp(ptr, "Ljava/lang/Long") == 0) {
+                                                    break;
+                                                case 'J': 
                                                     expr_init->type = "long";
                                                     expr_init->init = "1L";
-                                                }else if(strcmp(ptr, "Ljava/math/BigDecimal;") == 0) {
-                                                    expr_init->type = "BigDecimal";
-                                                    expr_init->init = "BigDecimal.valueOf(1)";
+                                                    break;
+                                                case 'F': 
+                                                    expr_init->type = "float";
+                                                    expr_init->init = "1.0f";
+                                                    break;
+                                                case 'D': 
+                                                    expr_init->type = "double";
+                                                    expr_init->init = "1.0d";
+                                                    break;
+                                                case 'B': 
+                                                    expr_init->type = "byte";
+                                                    expr_init->init = "1";
+                                                    break;
+                                                case 'C': 
+                                                    expr_init->type = "char";
+                                                    expr_init->init = "'1'";
+                                                    break;
+                                                case 'S': 
+                                                    expr_init->type = "short";
+                                                    expr_init->init = "(short)1";
+                                                    break;
+                                                case 'Z': 
+                                                    expr_init->type = "boolean";
+                                                    expr_init->init = "false";
+                                                    break;
+                                                default: {
+                                                    if(strcmp(ptr, "Ljava/lang/String;") == 0) {
+                                                        expr_init->type = "String";
+                                                        expr_init->init = "\"1\"";
+                                                    }else if(strcmp(ptr, "Ljava/util/List;") == 0) {
+                                                        expr_init->type = "List";
+                                                        expr_init->init = "new ArrayList()";
+                                                    }else if(strcmp(ptr, "Ljava/util/Map;") == 0) {
+                                                        expr_init->type = "Map";
+                                                        expr_init->init = "new HashMap()";
+                                                    }else if(strcmp(ptr, "Ljava/util/Set;") == 0) {
+                                                        expr_init->type = "Set";
+                                                        expr_init->init = "new HashSet()";
+                                                    }else if(strcmp(ptr, "Ljava/lang/Integer") == 0) {
+                                                        expr_init->type = "int";
+                                                        expr_init->init = "1";
+                                                    }else if(strcmp(ptr, "Ljava/lang/Long") == 0) {
+                                                        expr_init->type = "long";
+                                                        expr_init->init = "1L";
+                                                    }else if(strcmp(ptr, "Ljava/math/BigDecimal;") == 0) {
+                                                        expr_init->type = "BigDecimal";
+                                                        expr_init->init = "BigDecimal.valueOf(1)";
+                                                    }
+                                                    break;
                                                 }
-                                                break;
                                             }
+                                            expr_init->name = get_test_method_field_arg(frame->test_method);
+                                            expr_t *expr = expr_new(EXPR_VAR);
+                                            expr->var = expr_init;
+                                            expr_stmt_t *expr_stmt = expr_stmt_new(expr);
+                                            stmt_t *stmt = stmt_new(STMT_EXPR);
+                                            stmt->expr = expr_stmt;
+                                            body_branch_t *branch = calloc(1, sizeof(body_branch_t));
+                                            branch->kind = BODY_BRANCH_STMT;
+                                            branch->stmt = stmt;
+                                            arraylist_add(frame->test_method->body, branch);
                                         }
-                                        expr_init->name = get_test_method_field_arg(frame->test_method);
-                                        expr_t *expr = expr_new(EXPR_VAR);
-                                        expr->var = expr_init;
-                                        expr_stmt_t *expr_stmt = expr_stmt_new(expr);
-                                        stmt_t *stmt = stmt_new(STMT_EXPR);
-                                        stmt->expr = expr_stmt;
-                                        body_branch_t *branch = calloc(1, sizeof(body_branch_t));
-                                        branch->kind = BODY_BRANCH_STMT;
-                                        branch->stmt = stmt;
-                                        arraylist_add(frame->test_method->body, branch);
+                                    }
+                                    for(int i = 0; i < call_method->return_slot_count - 1; i++) {
+                                        push(frame);
                                     }
                                 }
+
+                                // 跳过这次方法的调用
+                                frame->pc += 3;
                                 break;
                             }
                         }
