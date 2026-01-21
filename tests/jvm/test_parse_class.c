@@ -55,9 +55,10 @@ int junit_test_class_clinit() {
 int junit_test_class_init() {
     const char *file = "/mnt/e/code_new/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller";
     // const char *file = "/Users/lixiaolin/Documents/xiaobin/杉杉/shanshan-biz-order-app/shanshan-biz-order-app/target/classes/com/shanshan/order/controller";
+    const char *dest_path = "/mnt/e/code_new/shanshan-biz-order-app/shanshan-biz-order-app/src/test/java/junit_mock";
     project_t *project = load_project(file, NULL);
     // load class from jdk or jar
-    create_junit_test_class(project, NULL, "com.shanshan");
+    create_junit_test_class(project, dest_path, "com.shanshan");
     return SUCCESS;
 }
 

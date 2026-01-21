@@ -320,6 +320,85 @@ static int opcode_is_store(u1 opcode) {
         || opcode == OPCODE_bastore || opcode == OPCODE_castore || opcode == OPCODE_sastore;
 }
 
+static void fill_expr_init(var_expr_t *expr_init, const char *type) {
+    if(strcmp(type, "Ljava/lang/String;") == 0) {
+        expr_init->type = "String";
+        literal_expr_t *literal_expr = literal_expr_new(LIT_STRING);
+        literal_expr->s = "1";
+        expr_t *expr = expr_new(EXPR_LITERAL);
+        expr->literal = literal_expr;
+        expr_init->init = expr;
+    }else if(strcmp(type, "Ljava/util/List;") == 0) {
+        expr_init->type = "List";
+        expr_init->params = arraylist_new(1);
+        // todo 后续再补充
+        arraylist_add(expr_init->params, "?");
+        expr_new_t *exprnew = expr_new_new("ArrayList", 1);
+        expr_t *expr = expr_new(EXPR_NEW);
+        expr->new = exprnew;
+        expr_init->init = expr;
+    }else if(strcmp(type, "Ljava/util/Map;") == 0) {
+        expr_init->type = "Map";
+        expr_init->params = arraylist_new(2);
+        // todo 后续再补充
+        arraylist_add(expr_init->params, "?");
+        arraylist_add(expr_init->params, "?");
+        expr_new_t *exprnew = expr_new_new("HashMap", 1);
+        expr_t *expr = expr_new(EXPR_NEW);
+        expr->new = exprnew;
+        expr_init->init = expr;
+    }else if(strcmp(type, "Ljava/util/Set;") == 0) {
+        expr_init->type = "Set";
+        expr_init->params = arraylist_new(1);
+        // todo 后续再补充
+        arraylist_add(expr_init->params, "?");
+        expr_new_t *exprnew = expr_new_new("HashSet", 1);
+        expr_t *expr = expr_new(EXPR_NEW);
+        expr->new = exprnew;
+        expr_init->init = expr;
+    }else if(strcmp(type, "Ljava/lang/Integer") == 0) {
+        expr_init->type = "int";
+        literal_expr_t *literal_expr = literal_expr_new(LIT_INT);
+        literal_expr->i = 1;
+        expr_t *expr = expr_new(EXPR_LITERAL);
+        expr->literal = literal_expr;
+        expr_init->init = expr;
+    }else if(strcmp(type, "Ljava/lang/Long") == 0) {
+        expr_init->type = "long";
+        literal_expr_t *literal_expr = literal_expr_new(LIT_LONG);
+        literal_expr->l = 1L;
+        expr_t *expr = expr_new(EXPR_LITERAL);
+        expr->literal = literal_expr;
+        expr_init->init = expr;
+    }else if(strcmp(type, "Ljava/math/BigDecimal;") == 0) {
+        expr_init->type = "BigDecimal";
+        method_call_expr_t *mc = method_call_expr_new(NULL, "BigDecimal.valueOf");
+        arraylist_add(mc->args, "1");
+        expr_t *expr = expr_new(EXPR_METHOD_CALL);
+        expr->method_call = mc;
+        expr_init->init = expr;
+    }else if(strcmp(type, "Lorg/redisson/api/RBucket;") == 0) {
+        expr_init->type = "RBucket";
+        expr_init->params = arraylist_new(1);
+        // todo 后续再补充
+        arraylist_add(expr_init->params, "Object");
+        expr_new_t *exprnew = expr_new_new("MyRBucket", 1);
+        expr_t *expr = expr_new(EXPR_NEW);
+        expr->new = exprnew;
+        expr_init->init = expr;
+    }
+    else {
+        char buffer[200];
+        expr_init->type = descriptor_to_simple_type(type);
+        sprintf(buffer, "%s.class", expr_init->type);
+        method_call_expr_t *mc = method_call_expr_new(NULL, "Util.newAndInit");
+        arraylist_add(mc->args, strdup(buffer));
+        expr_t *expr = expr_new(EXPR_METHOD_CALL);
+        expr->method_call = mc;
+        expr_init->init = expr;
+    }
+}
+
 void exec_instruction(jvm_thread_t *thread) {
     frame_t *frame = thread->current_frame;
     u4 code_length = frame->method->code->code_length;
@@ -1400,25 +1479,52 @@ void exec_instruction(jvm_thread_t *thread) {
                 test_field_t *match_field = NULL;
                 for(size_t i=0;i<test_fields->size;i++) {
                     test_field_t *field = (test_field_t *)arraylist_get(test_fields, i);
-                    if(strcmp(field->name, target_field->name) == 0 && strcmp(field->type, target_field->descriptor) == 0) {
+                    if(strcmp(field->name, target_field->name) == 0 && strcmp(field->descriptor, target_field->descriptor) == 0) {
                         match_field = field;
                         break;
                     }
                 }
+
+                pop(frame);
+                // 模拟的情况下，这里的ref可能是个null
+                // object_t *ref = pop(frame)->ref;
+                // if(ref == NULL) {
+                //     throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
+                //     return;
+                // }
+                for(int i=target_field->slot_count - 1;i>= 0;i--) {
+                    slot_t *field_slot = target_field->slots + i;
+                    slot_t *slot = push(frame);
+                    slot->bits = field_slot->bits;
+                    slot->ref = field_slot->ref;
+                }
+
                 if(match_field != NULL) {
                     // 跳过其他的opcode，直接找到调用方法
                     while(1) {
                         skip_instruction(thread);
                         opcode = codes[frame->pc];
-                        if(opcode == OPCODE_invokevirtual) {
+                        if(opcode == OPCODE_invokevirtual || opcode == OPCODE_invokeinterface) {
                             u2 high = codes[frame->pc+1];
                             u2 low = codes[frame->pc+2];
                             index = (high << 8) | low;
                             method_t *call_method = resolve_method(thread, class, entries + index);
-                            if(call_method != NULL && strcmp(call_method->descriptor, match_field->type) == 0) {
+                            const char *end = strchr(match_field->descriptor, ';');
+                            if(call_method != NULL 
+                                && strncmp(call_method->klass->class_name, match_field->descriptor + 1, end - match_field->descriptor - 1) == 0) {
+
+                                u2 offset = 0;
+                                switch(opcode) {
+                                    case OPCODE_invokevirtual:
+                                        offset = 3;
+                                        break;
+                                    case OPCODE_invokeinterface:
+                                        offset = 5;
+                                        break;
+                                }
+
                                 // 设置方法的参数
                                 char *ptr = call_method->descriptor + 1;
-                                mock_method_call_expr_t *expr_mock_mc = calloc(1, sizeof(mock_method_call_expr_t));
                                 arraylist *args = arraylist_new(2);
                                 char buffer[40];
                                 while(*ptr && *ptr != ')') {
@@ -1458,10 +1564,13 @@ void exec_instruction(jvm_thread_t *thread) {
                                             pop(frame);
                                             break;
                                         case 'L': { 
-                                            char *simple_type = descriptor_to_simple_type(ptr);
+                                            const char *end = strchr(ptr, ';');
+                                            const char *start = end - 1;
+                                            while(*start != '/') start--;
+                                            char *simple_type = strndup(start + 1, end - start - 1);
                                             sprintf(buffer, "any(%s.class)", simple_type);
                                             arraylist_add(args, strdup(buffer));
-                                            ptr = strrchr(ptr, ';');
+                                            ptr = strchr(ptr, ';');
                                             pop(frame);
                                             break;
                                         }
@@ -1474,7 +1583,7 @@ void exec_instruction(jvm_thread_t *thread) {
 
                                 // 跳过了方法执行
                                 // 判断是否需要创建变量
-                                opcode = codes[frame->pc + 4];
+                                opcode = codes[frame->pc + offset];
                                 if(call_method->return_slot_count> 0) {
                                     if(opcode != OPCODE_pop) {
                                         // 有返回值，但不是直接pop，说明新建了变量
@@ -1482,64 +1591,85 @@ void exec_instruction(jvm_thread_t *thread) {
                                             ptr++;
                                             var_expr_t *expr_init = var_expr_new(match_field->name);
                                             switch(*ptr) {
-                                                case 'I':
+                                                case 'I': {
                                                     expr_init->type = "int";
-                                                    expr_init->init = "1";
+                                                    literal_expr_t *literal = literal_expr_new(LIT_INT);
+                                                    literal->l = 1;
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
+                                                    expr_init->init = expr;
                                                     break;
-                                                case 'J': 
+                                                }
+                                                case 'J': {
                                                     expr_init->type = "long";
-                                                    expr_init->init = "1L";
+                                                    literal_expr_t *literal = literal_expr_new(LIT_LONG);
+                                                    literal->l = 1L;
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
+                                                    expr_init->init = expr;
                                                     break;
-                                                case 'F': 
+                                                }
+                                                case 'F':  {
+                                                    literal_expr_t *literal = literal_expr_new(LIT_FLOAT);
+                                                    literal->f = 1.0f;
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
                                                     expr_init->type = "float";
-                                                    expr_init->init = "1.0f";
+                                                    expr_init->init = expr;
                                                     break;
-                                                case 'D': 
+                                                }
+                                                case 'D': {
+                                                    literal_expr_t *literal = literal_expr_new(LIT_DOUBLE);
+                                                    literal->d = 1.0;
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
                                                     expr_init->type = "double";
-                                                    expr_init->init = "1.0d";
+                                                    expr_init->init = expr;
                                                     break;
-                                                case 'B': 
+                                                }
+                                                case 'B': {
+                                                    literal_expr_t *literal = literal_expr_new(LIT_BYTE);
+                                                    literal->b = 1;
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
                                                     expr_init->type = "byte";
-                                                    expr_init->init = "1";
+                                                    expr_init->init = expr;
                                                     break;
-                                                case 'C': 
+                                                }
+                                                case 'C': {
+                                                    literal_expr_t *literal = literal_expr_new(LIT_CHAR);
+                                                    literal->c = '1';
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
                                                     expr_init->type = "char";
-                                                    expr_init->init = "'1'";
+                                                    expr_init->init = expr;
                                                     break;
-                                                case 'S': 
+                                                }
+                                                case 'S': {
+                                                    literal_expr_t *literal = literal_expr_new(LIT_SHORT);
+                                                    literal->i = 1;
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
                                                     expr_init->type = "short";
-                                                    expr_init->init = "(short)1";
+                                                    expr_init->init = expr;
                                                     break;
-                                                case 'Z': 
+                                                }
+                                                case 'Z': {
+                                                    literal_expr_t *literal = literal_expr_new(LIT_BOOL);
+                                                    literal->b = 0;
+                                                    expr_t *expr = expr_new(EXPR_LITERAL);
+                                                    expr->literal = literal;
                                                     expr_init->type = "boolean";
-                                                    expr_init->init = "false";
+                                                    expr_init->init = expr;
                                                     break;
+                                                }
                                                 default: {
-                                                    if(strcmp(ptr, "Ljava/lang/String;") == 0) {
-                                                        expr_init->type = "String";
-                                                        expr_init->init = "\"1\"";
-                                                    }else if(strcmp(ptr, "Ljava/util/List;") == 0) {
-                                                        expr_init->type = "List";
-                                                        expr_init->init = "new ArrayList()";
-                                                    }else if(strcmp(ptr, "Ljava/util/Map;") == 0) {
-                                                        expr_init->type = "Map";
-                                                        expr_init->init = "new HashMap()";
-                                                    }else if(strcmp(ptr, "Ljava/util/Set;") == 0) {
-                                                        expr_init->type = "Set";
-                                                        expr_init->init = "new HashSet()";
-                                                    }else if(strcmp(ptr, "Ljava/lang/Integer") == 0) {
-                                                        expr_init->type = "int";
-                                                        expr_init->init = "1";
-                                                    }else if(strcmp(ptr, "Ljava/lang/Long") == 0) {
-                                                        expr_init->type = "long";
-                                                        expr_init->init = "1L";
-                                                    }else if(strcmp(ptr, "Ljava/math/BigDecimal;") == 0) {
-                                                        expr_init->type = "BigDecimal";
-                                                        expr_init->init = "BigDecimal.valueOf(1)";
-                                                    }
+                                                    fill_expr_init(expr_init, ptr);
                                                     break;
                                                 }
                                             }
+
+                                            // 定义变量
                                             expr_init->name = get_test_method_field_arg(frame->test_method);
                                             expr_t *expr = expr_new(EXPR_VAR);
                                             expr->var = expr_init;
@@ -1549,33 +1679,40 @@ void exec_instruction(jvm_thread_t *thread) {
                                             body_branch_t *branch = calloc(1, sizeof(body_branch_t));
                                             branch->kind = BODY_BRANCH_STMT;
                                             branch->stmt = stmt;
-                                            arraylist_add(frame->test_method->body, branch);
+                                            arraylist_add(frame->test_method->branchs, branch);
+
+                                            // todo 将变量保存到test_method中，后续可能需要设置值
+                                            test_field_t *local_var = test_field_new(expr_init->name, expr_init->type, ptr);
+                                            arraylist_add(frame->test_method->test_local_vars, local_var);
+
+                                            // mock 方法，返回指定的变量
+                                            mock_method_call_expr_t *expr_mock_mc = calloc(1, sizeof(mock_method_call_expr_t));
+                                            expr_mock_mc->args = args;
+                                            expr_mock_mc->type = MOCK_CALL_RETURN;
+                                            expr_mock_mc->mock_return = expr_init->name;
+                                            expr_mock_mc->field = strdup(match_field->name);
+                                            expr_mock_mc->method = strdup(call_method->name);
+                                            expr = expr_new(EXPR_MOCK_METHOD_CALL);
+                                            expr->mock_method_call = expr_mock_mc;
+                                            stmt = stmt_new(STMT_EXPR);
+                                            stmt->expr = expr_stmt_new(expr);
+                                            branch = calloc(1, sizeof(body_branch_t));
+                                            branch->kind = BODY_BRANCH_STMT;
+                                            branch->stmt = stmt;
+                                            arraylist_add(frame->test_method->branchs, branch);
                                         }
                                     }
-                                    for(int i = 0; i < call_method->return_slot_count - 1; i++) {
+                                    for(int i = 0; i < call_method->return_slot_count; i++) {
                                         push(frame);
                                     }
                                 }
 
                                 // 跳过这次方法的调用
-                                frame->pc += 3;
+                                frame->pc += offset;
                                 break;
                             }
                         }
                     }
-                }
-                pop(frame);
-                // 模拟的情况下，这里的ref可能是个null
-                // object_t *ref = pop(frame)->ref;
-                // if(ref == NULL) {
-                //     throw_error(thread, RUNTIME_ERROR_NullPointerException, NULL);
-                //     return;
-                // }
-                for(int i=target_field->slot_count - 1;i>= 0;i--) {
-                    slot_t *field_slot = target_field->slots + i;
-                    slot_t *slot = push(frame);
-                    slot->bits = field_slot->bits;
-                    slot->ref = field_slot->ref;
                 }
 
                 break;

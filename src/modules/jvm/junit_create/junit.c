@@ -11,6 +11,7 @@ test_method_t *test_method_new(const char *name, const char *return_type) {
     method->annos = arraylist_new(2);
     method->body = arraylist_new(10);
     method->branchs = arraylist_new(10);
+    method->test_local_vars = arraylist_new(5);
     return method;
 }
 
@@ -25,10 +26,11 @@ test_class_t *test_class_new(const char *package_name, const char *class_name) {
     return test_class;
 }
 
-test_field_t *test_field_new(const char *name, const char *type) {
+test_field_t *test_field_new(const char *name, const char *type, const char *descriptor) {
     test_field_t *field = calloc(1, sizeof(test_field_t));
     field->name = strdup(name);
     field->type = strdup(type);
+    field->descriptor = strdup(descriptor);
     field->annos = arraylist_new(2);
     return field;
 }

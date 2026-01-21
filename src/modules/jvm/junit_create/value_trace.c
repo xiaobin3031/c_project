@@ -242,7 +242,7 @@ void add_test_method_body(arraylist *body, stmt_t *stmt) {
                 case STMT_EXPR: {
                     expr_t *tmp_expr = tmp->expr->expr;
                     expr_t *stmt_expr = stmt->expr->expr;
-                    if(is_expr_equal(tmp->expr->expr, stmt->expr->expr) == 1) {
+                    if(is_expr_equal(tmp_expr, stmt_expr) == 1) {
                         stmt_t *old = (stmt_t*)arraylist_set(body, i, stmt);
                         stmt_free(old);
                         return;

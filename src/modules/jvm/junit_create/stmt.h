@@ -12,6 +12,7 @@ typedef enum {
 typedef struct {
     const char *type;
     const char *name;
+    const char *full_type;
     expr_t *init;
 } var_decl_stmt_t;
 

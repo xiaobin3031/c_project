@@ -19,7 +19,7 @@ void arraylist_add(arraylist *list, void *value) {
 }
 
 void *arraylist_get(arraylist *list, size_t index) {
-    if(index >= list->size) return NULL;
+    if(index < 0 || index >= list->size) return NULL;
 
     return list->values[index];
 }

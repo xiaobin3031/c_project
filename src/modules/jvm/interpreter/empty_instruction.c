@@ -62,6 +62,9 @@ void skip_method(frame_t *frame, rt_cp_entry_t *entry) {
 }
 
 
+/**
+ * 只跳过一次
+ */
 void skip_instruction(jvm_thread_t *thread) {
     frame_t *frame = thread->current_frame;
     u4 code_length = frame->method->code->code_length;
@@ -72,7 +75,7 @@ void skip_instruction(jvm_thread_t *thread) {
     class_t *class = frame->method->klass;
     rt_cp_entry_t *entries = class->entries;
 
-    while(frame->pc < code_length) {
+    if(frame->pc < code_length) {
         opcode = codes[frame->pc];
         printf("skip  =======  %d: opcode: %d %s\n", frame->pc, opcode, opcode_to_string(opcode));
         switch(opcode) {

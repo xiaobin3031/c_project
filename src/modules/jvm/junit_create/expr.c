@@ -8,6 +8,13 @@ literal_expr_t *literal_expr_new(literal_kind_e kind) {
     return expr;
 }
 
+expr_new_t *expr_new_new(const char *type, int has_params) {
+    expr_new_t *expr = calloc(1, sizeof(expr_new_t));
+    if(type) expr->type = strdup(type);
+    expr->has_params = has_params;
+    return expr;
+}
+
 var_expr_t *var_expr_new(const char *name) {
     var_expr_t *expr = calloc(1, sizeof(var_expr_t));
     if(name) expr->name = strdup(name);

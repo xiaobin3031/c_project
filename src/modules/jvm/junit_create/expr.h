@@ -5,25 +5,38 @@
 typedef struct expr_t expr_t;
 
 typedef enum {
-    EXPR_LITERAL,
-    EXPR_VAR,
-    EXPR_NEW,
-    EXPR_METHOD_CALL,
-    EXPR_MOCK_METHOD_CALL,
+    MOCK_CALL_RETURN = 1,
+    MOCK_CALL_THROW = 2,
+} mock_call_type_e;
+
+typedef enum {
+    EXPR_LITERAL = 11,
+    EXPR_VAR = 12,
+    EXPR_NEW = 13,
+    EXPR_METHOD_CALL = 14,
+    EXPR_MOCK_METHOD_CALL = 15,
 } expr_kind_e;
 
 typedef enum {
-    LIT_SHORT,
-    LIT_INT,
-    LIT_LONG,
-    LIT_BOOL,
-    LIT_BYTE,
-    LIT_STRING,
-    LIT_NULL,
-    LIT_FLOAT,
-    LIT_DOUBLE,
-    LIT_CHAR,
+    LIT_SHORT = 50,
+    LIT_INT = 51,
+    LIT_LONG = 52,
+    LIT_BOOL = 53,
+    LIT_BYTE = 54,
+    LIT_STRING = 55,
+    LIT_NULL = 56,
+    LIT_FLOAT = 57,
+    LIT_DOUBLE = 58,
+    LIT_CHAR = 59,
 } literal_kind_e;
+
+typedef struct {
+    const char *type;
+    arraylist *args;
+
+    // 有泛型
+    int has_params;
+} expr_new_t;
 
 typedef struct {
     literal_kind_e kind;
@@ -40,11 +53,13 @@ typedef struct {
 } literal_expr_t;
 
 typedef struct {
-    char *type;
-    char *name;
+    const char *type;
+    const char *name;
+    // 使用的时候初始化
+    arraylist *params;
 
     // 直接用字符串初始化
-    const char *init;
+    expr_t *init;
 } var_expr_t;
 
 typedef struct {
@@ -60,6 +75,9 @@ typedef struct {
 
 typedef struct {
     arraylist *args;
+    mock_call_type_e type;
+    const char *field;
+    const char *method;
 
     union {
         const char *mock_return;
@@ -75,10 +93,13 @@ struct expr_t {
         var_expr_t *var;
         method_call_expr_t *method_call;
         mock_method_call_expr_t *mock_method_call;
+        expr_new_t *new;
     };
 };
 
 literal_expr_t *literal_expr_new(literal_kind_e kind);
+
+expr_new_t *expr_new_new(const char *type, int has_params);
 
 var_expr_t *var_expr_new(const char *name);
 

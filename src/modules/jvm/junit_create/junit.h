@@ -25,8 +25,9 @@ typedef struct {
 
 
 typedef struct {
-    char *name;
-    char *type;
+    const char *name;
+    const char *type;
+    const char *descriptor;
     arraylist *annos;
 } test_field_t;
 
@@ -48,6 +49,9 @@ struct test_method_t {
     arraylist *annos;
     arraylist *body;
 
+    // 测试方法中的临时变量
+    arraylist *test_local_vars;
+
     // 拼凑变量的后缀
     int local_var_index;
     
@@ -59,9 +63,6 @@ struct test_method_t {
 
     // 方法节点
     arraylist *branchs;
-
-    // pc跑到过结束
-    int pc_has_reach_end;
 
     // 方法短路，说明本次方法已经跑过了
     int short_circuit;
@@ -90,10 +91,10 @@ test_method_t *test_method_new(const char *name, const char *return_type);
 
 test_class_t *test_class_new(const char *package_name, const char *class_name);
 
-test_field_t *test_field_new(const char *name, const char *type);
+test_field_t *test_field_new(const char *name, const char *type, const char *descriptor);
 
 if_t *if_new(u2 pc);
 
-void print_test_class(test_class_t *test_class);
+void print_test_class(test_class_t *test_class, const char *dest_file_path);
 
 char *get_test_method_field_arg(test_method_t *test_method);
