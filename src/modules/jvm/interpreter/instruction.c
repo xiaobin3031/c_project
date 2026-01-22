@@ -1595,7 +1595,8 @@ void exec_instruction(jvm_thread_t *thread) {
                                             add_import(frame->test_class, tmp_name);
                                             while(start > ptr && *start != '/') start--;
                                             char *simple_type = strndup(start + 1, end - start - 1);
-                                            sprintf(buffer, "any(%s.class)", simple_type);
+                                            // 暂时用any
+                                            sprintf(buffer, "any()", simple_type);
                                             arraylist_add(args, strdup(buffer));
                                             ptr = end;
                                             pop(frame);
@@ -2054,29 +2055,37 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_ifnull: {   // 0xc6,      // 198 
-                object_t *ref = pop(frame)->ref;
-                printf("opcode: ifnull     %d\n", ref == NULL ? 1 : 0);
-                if(ref != NULL) {
+                slot_t *slot = pop(frame);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifnull", frame->pc, ok_pc, frame->pc + 3);
+                if(ift->taken == 0) {
+                    ift->vt->value = vt_const_new(0);
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
+                    ift->vt->value = vt_const_new(1);
                     frame->pc += 3;
                 }else{
-                    u1 high = codes[frame->pc+1];
-                    u1 low = codes[frame->pc+2];
-                    int16_t index = (int16_t)((high << 8) | low);
-                    frame->pc += index;
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_ifnonnull: {   // 0xc7,      // 199 
-                object_t *ref = pop(frame)->ref;
-                printf("opcode: ifnonnull      %d\n", ref != NULL ? 1 : 0);
-                if(ref == NULL) {
+                slot_t *slot = pop(frame);
+                u2 ok_pc = get_new_pc(frame);
+                if_t *ift = record_branch(slot, frame->test_method, "ifnonnull", frame->pc, ok_pc, frame->pc + 3);
+                if(ift->taken == 0) {
+                    ift->vt->value = vt_const_new(1);
+                    frame->pc = ok_pc;
+                }else if(ift->taken == 1){
+                    ift->vt->value = vt_const_new(0);
                     frame->pc += 3;
                 }else{
-                    u1 high = codes[frame->pc+1];
-                    u1 low = codes[frame->pc+2];
-                    int16_t index = (int16_t)((high << 8) | low);
-                    frame->pc += index;
+                    frame->test_method->short_circuit = 1;
+                    return;
                 }
+                ift->get_pcs[ift->taken] = frame->pc;
                 break;
             }
             case OPCODE_goto_w: {   // 0xc8,      // 200 

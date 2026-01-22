@@ -13,19 +13,18 @@ typedef struct method_t method_t;
 typedef struct vt_back_stmt_t vt_back_stmt_t;
 
 typedef enum {
-    VT_CONST,   // 常量
-    VT_STRING,  // 字符串
-    VT_PARAM,
-    VT_FIELD,
-    VT_INVOKE,
-    VT_COMPARE,
-    VT_NULL,
-    VT_NOTNULL,
+    VT_CONST = 1,   // 常量
+    VT_STRING = 2,  // 字符串
+    VT_PARAM = 3,
+    VT_FIELD = 4,
+    VT_INVOKE = 5,
+    VT_COMPARE = 6,
+    VT_NULL = 7,
+    VT_NOTNULL = 8,
+    VT_SUB_CONST_INT = 9,
+    VT_SUB_CONST_LONG = 10,
 
-    VT_SUB_CONST_INT,
-    VT_SUB_CONST_LONG,
-
-    VT_UNKNOWN
+    VT_UNKNOWN = 0,
 } vt_kind_e;
 
 struct vt_back_stmt_t {

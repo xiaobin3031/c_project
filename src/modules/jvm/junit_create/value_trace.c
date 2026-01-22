@@ -329,5 +329,9 @@ void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
 
             break;
         }
+        default: {
+            printf("unimplemeted vt kind: %d\n", vt->kind);
+            abort();
+        }
     }
 }
