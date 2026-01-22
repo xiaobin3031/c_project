@@ -55,6 +55,7 @@ typedef struct {
 typedef struct {
     const char *type;
     const char *name;
+    const char *descriptor;
     // 使用的时候初始化
     arraylist *params;
 

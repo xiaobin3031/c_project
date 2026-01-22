@@ -64,6 +64,10 @@ typedef struct {
     u2 catch_type;
 } rt_exception_table_t;
 
+typedef struct {
+    const char *class_name;
+} rt_exception_t;
+
 struct method_t {
     u2 access_flags;
     char *name;
@@ -79,6 +83,9 @@ struct method_t {
     u2 return_slot_count;
 
     class_t *klass;
+    
+    u2 exception_count;
+    rt_exception_t *exceptions;
 };
 
 struct field_t {

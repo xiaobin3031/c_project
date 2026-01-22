@@ -320,7 +320,7 @@ static int opcode_is_store(u1 opcode) {
         || opcode == OPCODE_bastore || opcode == OPCODE_castore || opcode == OPCODE_sastore;
 }
 
-static void fill_expr_init(var_expr_t *expr_init, const char *type) {
+static void fill_expr_init(var_expr_t *expr_init, const char *type, test_class_t *test_class) {
     if(strcmp(type, "Ljava/lang/String;") == 0) {
         expr_init->type = "String";
         literal_expr_t *literal_expr = literal_expr_new(LIT_STRING);
@@ -337,6 +337,7 @@ static void fill_expr_init(var_expr_t *expr_init, const char *type) {
         expr_t *expr = expr_new(EXPR_NEW);
         expr->new = exprnew;
         expr_init->init = expr;
+        add_import(test_class, "java.util.ArrayList");
     }else if(strcmp(type, "Ljava/util/Map;") == 0) {
         expr_init->type = "Map";
         expr_init->params = arraylist_new(2);
@@ -347,6 +348,8 @@ static void fill_expr_init(var_expr_t *expr_init, const char *type) {
         expr_t *expr = expr_new(EXPR_NEW);
         expr->new = exprnew;
         expr_init->init = expr;
+        add_import(test_class, "java.util.HashMap");
+        add_import(test_class, "java.util.Map");
     }else if(strcmp(type, "Ljava/util/Set;") == 0) {
         expr_init->type = "Set";
         expr_init->params = arraylist_new(1);
@@ -356,6 +359,8 @@ static void fill_expr_init(var_expr_t *expr_init, const char *type) {
         expr_t *expr = expr_new(EXPR_NEW);
         expr->new = exprnew;
         expr_init->init = expr;
+        add_import(test_class, "java.util.HashSet");
+        add_import(test_class, "java.util.Set");
     }else if(strcmp(type, "Ljava/lang/Integer") == 0) {
         expr_init->type = "int";
         literal_expr_t *literal_expr = literal_expr_new(LIT_INT);
@@ -377,6 +382,7 @@ static void fill_expr_init(var_expr_t *expr_init, const char *type) {
         expr_t *expr = expr_new(EXPR_METHOD_CALL);
         expr->method_call = mc;
         expr_init->init = expr;
+        add_import(test_class, "java.math.BigDecimal");
     }else if(strcmp(type, "Lorg/redisson/api/RBucket;") == 0) {
         expr_init->type = "RBucket";
         expr_init->params = arraylist_new(1);
@@ -386,8 +392,20 @@ static void fill_expr_init(var_expr_t *expr_init, const char *type) {
         expr_t *expr = expr_new(EXPR_NEW);
         expr->new = exprnew;
         expr_init->init = expr;
+        add_import(test_class, "org.redisson.api.RBucket");
+        add_import(test_class, "com.shanshan.order.juninew.model.MyRBucket");
     }
     else {
+        char *tmp_name = strdup(type);
+        char *ptr_end = tmp_name;
+        if(*ptr_end == 'L') ptr_end++;
+        char *ptr = ptr_end;
+        while(*ptr && *ptr != ';') {
+            if(*ptr == '/') *ptr = '.';
+            ptr++;
+        }
+        if(*ptr == ';') *ptr = '\0';
+        add_import(test_class, ptr_end);
         char buffer[200];
         expr_init->type = descriptor_to_simple_type(type);
         sprintf(buffer, "%s.class", expr_init->type);
@@ -396,6 +414,7 @@ static void fill_expr_init(var_expr_t *expr_init, const char *type) {
         expr_t *expr = expr_new(EXPR_METHOD_CALL);
         expr->method_call = mc;
         expr_init->init = expr;
+        free(tmp_name);
     }
 }
 
@@ -1565,13 +1584,22 @@ void exec_instruction(jvm_thread_t *thread) {
                                             break;
                                         case 'L': { 
                                             const char *end = strchr(ptr, ';');
-                                            const char *start = end - 1;
-                                            while(*start != '/') start--;
+                                            char *tmp_name = strndup(ptr + 1, end - ptr - 1);
+                                            char *ptr_tmp_name = tmp_name;
+                                            while(*ptr_tmp_name) {
+                                                if(*ptr_tmp_name == '/') *ptr_tmp_name = '.';
+                                                ptr_tmp_name++;
+                                            }
+                                            char *start = end - 1;
+                                            printf("add_import %s\n", tmp_name);
+                                            add_import(frame->test_class, tmp_name);
+                                            while(start > ptr && *start != '/') start--;
                                             char *simple_type = strndup(start + 1, end - start - 1);
                                             sprintf(buffer, "any(%s.class)", simple_type);
                                             arraylist_add(args, strdup(buffer));
-                                            ptr = strchr(ptr, ';');
+                                            ptr = end;
                                             pop(frame);
+                                            free(tmp_name);
                                             break;
                                         }
                                     }
@@ -1589,99 +1617,14 @@ void exec_instruction(jvm_thread_t *thread) {
                                         // 有返回值，但不是直接pop，说明新建了变量
                                         if(*ptr == ')') {
                                             ptr++;
-                                            var_expr_t *expr_init = var_expr_new(match_field->name);
-                                            switch(*ptr) {
-                                                case 'I': {
-                                                    expr_init->type = "int";
-                                                    literal_expr_t *literal = literal_expr_new(LIT_INT);
-                                                    literal->l = 1;
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                case 'J': {
-                                                    expr_init->type = "long";
-                                                    literal_expr_t *literal = literal_expr_new(LIT_LONG);
-                                                    literal->l = 1L;
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                case 'F':  {
-                                                    literal_expr_t *literal = literal_expr_new(LIT_FLOAT);
-                                                    literal->f = 1.0f;
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->type = "float";
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                case 'D': {
-                                                    literal_expr_t *literal = literal_expr_new(LIT_DOUBLE);
-                                                    literal->d = 1.0;
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->type = "double";
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                case 'B': {
-                                                    literal_expr_t *literal = literal_expr_new(LIT_BYTE);
-                                                    literal->b = 1;
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->type = "byte";
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                case 'C': {
-                                                    literal_expr_t *literal = literal_expr_new(LIT_CHAR);
-                                                    literal->c = '1';
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->type = "char";
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                case 'S': {
-                                                    literal_expr_t *literal = literal_expr_new(LIT_SHORT);
-                                                    literal->i = 1;
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->type = "short";
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                case 'Z': {
-                                                    literal_expr_t *literal = literal_expr_new(LIT_BOOL);
-                                                    literal->b = 0;
-                                                    expr_t *expr = expr_new(EXPR_LITERAL);
-                                                    expr->literal = literal;
-                                                    expr_init->type = "boolean";
-                                                    expr_init->init = expr;
-                                                    break;
-                                                }
-                                                default: {
-                                                    fill_expr_init(expr_init, ptr);
-                                                    break;
-                                                }
-                                            }
-
-                                            // 定义变量
-                                            expr_init->name = get_test_method_field_arg(frame->test_method);
-                                            expr_t *expr = expr_new(EXPR_VAR);
-                                            expr->var = expr_init;
-                                            expr_stmt_t *expr_stmt = expr_stmt_new(expr);
-                                            stmt_t *stmt = stmt_new(STMT_EXPR);
-                                            stmt->expr = expr_stmt;
+                                            stmt_t *stmt = init_arg_stmt(ptr, frame->test_class, &frame->test_method->local_var_index);
                                             body_branch_t *branch = calloc(1, sizeof(body_branch_t));
                                             branch->kind = BODY_BRANCH_STMT;
                                             branch->stmt = stmt;
                                             arraylist_add(frame->test_method->branchs, branch);
 
                                             // todo 将变量保存到test_method中，后续可能需要设置值
+                                            var_expr_t *expr_init = stmt->expr->expr->var;
                                             test_field_t *local_var = test_field_new(expr_init->name, expr_init->type, ptr);
                                             arraylist_add(frame->test_method->test_local_vars, local_var);
 
@@ -1692,7 +1635,7 @@ void exec_instruction(jvm_thread_t *thread) {
                                             expr_mock_mc->mock_return = expr_init->name;
                                             expr_mock_mc->field = strdup(match_field->name);
                                             expr_mock_mc->method = strdup(call_method->name);
-                                            expr = expr_new(EXPR_MOCK_METHOD_CALL);
+                                            expr_t *expr = expr_new(EXPR_MOCK_METHOD_CALL);
                                             expr->mock_method_call = expr_mock_mc;
                                             stmt = stmt_new(STMT_EXPR);
                                             stmt->expr = expr_stmt_new(expr);
@@ -1709,6 +1652,9 @@ void exec_instruction(jvm_thread_t *thread) {
 
                                 // 跳过这次方法的调用
                                 frame->pc += offset;
+                                if(frame->method->exception_count > 0) {
+                                    frame->test_method->has_exception = 1;
+                                }
                                 break;
                             }
                         }

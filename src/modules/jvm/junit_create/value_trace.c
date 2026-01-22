@@ -316,7 +316,7 @@ void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
 
             // 再设置value的值
             if(vt->compare.opcode == OPCODE_if_icmpeq) {
-                if(value->constant.value != 0) {
+                if(vt->value->constant.value != 0) {
                     value->constant.value = value->constant.value + 1;
                 }
             }else{

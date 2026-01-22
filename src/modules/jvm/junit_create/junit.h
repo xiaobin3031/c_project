@@ -66,6 +66,9 @@ struct test_method_t {
 
     // 方法短路，说明本次方法已经跑过了
     int short_circuit;
+
+    // 简化一下，直接抛出Exception
+    int has_exception;
 };
 
 typedef struct {
@@ -81,11 +84,9 @@ typedef struct {
 
 } test_class_t;
 
-void create_junit_test_class(
-    project_t *project,
-    const char *dest_class_dir,
-    const char *new_package_name
-);
+void add_import(test_class_t *test_class, const char *type);
+
+void create_junit_test_class( project_t *project, const char *dest_class_dir);
 
 test_method_t *test_method_new(const char *name, const char *return_type);
 
@@ -97,4 +98,6 @@ if_t *if_new(u2 pc);
 
 void print_test_class(test_class_t *test_class, const char *dest_file_path);
 
-char *get_test_method_field_arg(test_method_t *test_method);
+char *get_test_method_field_arg(int *arg_index);
+
+stmt_t *init_arg_stmt(char *desc, test_class_t *test_class, int *arg_index);

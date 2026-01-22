@@ -18,134 +18,39 @@
 #include <unistd.h>
 #include <stdarg.h>
 
-static char buffer[1024];
 static int log_console = 1;
 
 static void add_common_imports(test_class_t *test_class) {
-    arraylist_add(test_class->imports, "import com.shanshan.order.juninew.util.Util;");
-    arraylist_add(test_class->imports, "import org.junit.jupiter.api.extension.ExtendWith;");
-    arraylist_add(test_class->imports, "import org.mockito.InjectMocks;");
-    arraylist_add(test_class->imports, "import org.mockito.Mock;");
-    arraylist_add(test_class->imports, "import org.springframework.test.context.junit.jupiter.SpringExtension;");
-    arraylist_add(test_class->imports, "import org.junit.jupiter.api.Test;");
-    arraylist_add(test_class->imports, "import org.junit.jupiter.api.extension.ExtendWith;");
-    arraylist_add(test_class->imports, "import static org.mockito.ArgumentMatchers.any;");
-    arraylist_add(test_class->imports, "import static org.mockito.Mockito.when;");
+    add_import(test_class, "com.shanshan.order.juninew.util.Util");
+    add_import(test_class, "org.junit.jupiter.api.extension.ExtendWith");
+    add_import(test_class, "org.mockito.InjectMocks");
+    add_import(test_class, "org.mockito.Mock");
+    add_import(test_class, "org.junit.jupiter.api.Test");
+    add_import(test_class, "static org.mockito.ArgumentMatchers.any");
+    add_import(test_class, "static org.mockito.Mockito.when");
+    add_import(test_class, "org.mockito.junit.jupiter.MockitoExtension");
 }
 
-static void add_import(test_class_t *test_class, const char *type) {
-    sprintf(buffer, "import %s;", type);
-    for(size_t i = 0; i < test_class->imports->size; i++) {
-        char *import = (char*)arraylist_get(test_class->imports, i);
-        if(strcmp(import, buffer) == 0) {
-            return;
-        }
-    }
-    arraylist_add(test_class->imports, strdup(buffer));
-}
-
-static arraylist *parameters_init_stmts(const char *descriptor) {
+static arraylist *parameters_init_stmts(const char *descriptor, test_class_t *test_class) {
     arraylist *stmts = arraylist_new(10);
 
 
-    const char *ptr = descriptor;
+    const char *desc = strdup(descriptor);
+    char *ptr = desc;
     ptr++;
     char arg_buffer[200];
+    int arg_index = 1;
     while(*ptr && *ptr != ')') {
-        sprintf(arg_buffer, "arg%d", stmts->size + 1);
-        var_decl_stmt_t *arg_decl = var_decl_stmt_new(NULL, arg_buffer, NULL);
-        expr_t *init;
-        switch(*ptr) {
-            case 'B': {
-                arg_decl->type = "byte";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_BYTE);
-                literal_expr->i = 1;
-                init->literal = literal_expr;
-                break;
-            }
-            case 'C': {
-                arg_decl->type = "char";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_CHAR);
-                literal_expr->c = 'a';
-                init->literal = literal_expr;
-                break;
-            }
-            case 'D': {
-                arg_decl->type = "double";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_DOUBLE);
-                literal_expr->d = 1.0;
-                init->literal = literal_expr;
-                break;
-            }
-            case 'F': {
-                arg_decl->type = "float";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_FLOAT);
-                literal_expr->f = 1.0f;
-                init->literal = literal_expr;
-                break;
-            }
-            case 'I': {
-                arg_decl->type = "int";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_INT);
-                literal_expr->i = 1L;
-                init->literal = literal_expr;
-                break;
-            }
-            case 'J': {
-                arg_decl->type = "long";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_LONG);
-                literal_expr->l = 1L;
-                init->literal = literal_expr;
-                break;
-            }
-            case 'S': {
-                arg_decl->type = "short";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_SHORT);
-                literal_expr->i = 1;
-                init->literal = literal_expr;
-                break;
-            }
-            case 'Z': {
-                arg_decl->type = "boolean";
-                init = expr_new(EXPR_LITERAL);
-                literal_expr_t *literal_expr = literal_expr_new(LIT_BOOL);
-                literal_expr->b = 1;
-                init->literal = literal_expr;
-                break;
-            }
-            case 'L': {
-                const char *end = strchr(ptr, ';');
-                const char *full_type = strndup(ptr + 1, end - ptr - 1);
-                char *simple_type = descriptor_to_simple_type(full_type);
-                arg_decl->type = strdup(simple_type);
-                arg_decl->full_type = strdup(full_type);
-                if(strcmp("java/lang/String", full_type) == 0) {
-                    init = expr_new(EXPR_LITERAL);
-                    literal_expr_t *literal_expr = literal_expr_new(LIT_STRING);
-                    literal_expr->s = strdup("a");
-                    init->literal = literal_expr;
-                }else{
-                    init = expr_new(EXPR_METHOD_CALL);
-                    method_call_expr_t *method_call_expr = method_call_expr_new(NULL, simple_type);
-                    method_call_expr->method = "Util.newAndInit";
-                    sprintf(arg_buffer, "%s.class", simple_type);
-                    arraylist_add(method_call_expr->args, strdup(arg_buffer));
-                    init->method_call = method_call_expr;
-                }
-                ptr = end;
-                break;
-            }
+        stmt_t *stmt = NULL;
+        if(*ptr == 'L') { 
+            const char *end = strchr(ptr, ';');
+            const char *tmp_ptr = strndup(ptr, end - ptr + 1);
+            stmt = init_arg_stmt(tmp_ptr, test_class, &arg_index);
+            free(tmp_ptr);
+            ptr = end;
+        }else {
+            stmt = init_arg_stmt(ptr, test_class, &arg_index);
         }
-        arg_decl->init = init;
-        stmt_t *stmt = stmt_new(STMT_VAR_DECL);
-        stmt->var_decl = arg_decl;
         arraylist_add(stmts, stmt);
 
         ptr++;
@@ -192,14 +97,28 @@ void fill_act_call_response(char *descriptor, char *test_method_name, method_cal
     }
 }
 
-void create_junit_test_class(
-    project_t *project,
-    const char *dest_class_dir,
-    const char *new_package_name
-) {
+void create_junit_test_class( project_t *project, const char *dest_class_dir) {
     bootstrap(project);
     char dest_file_buffer[1024];
     char act_call_buffer[1024];
+
+    // 从 dest_class_dir 中推断出package
+    char *pkg_path_end = strchr(dest_class_dir, '/');
+    while(pkg_path_end && strncmp(pkg_path_end, "/java", 5) != 0) {
+        pkg_path_end = strchr(pkg_path_end + 1, '/');
+    }
+    if(pkg_path_end == NULL) {
+        printf("[ERROR] can not find package name from %s\n", dest_class_dir);
+        return;
+    }
+    char *new_package_name = pkg_path_end+5;
+    if(*new_package_name == '/') new_package_name++;
+    // 将/转成.
+    char *ptr_pkg_name = strchr(new_package_name, '/');
+    while(ptr_pkg_name != NULL) {
+        *ptr_pkg_name = '.';
+        ptr_pkg_name = strchr(ptr_pkg_name+1, '/');
+    }
     for(int i=0;i<project->class_file_source->size;i++) {
         class_file_source_t *source = arraylist_get(project->class_file_source, i);
         if(source->source != CLASS_FILE_SOURCE_FILE) {
@@ -249,14 +168,15 @@ void create_junit_test_class(
                     method_call_expr_t *act_call_expr = method_call_expr_new(NULL, act_call_buffer);
                     // 计算返回值
                     fill_act_call_response(method->descriptor, method->name, act_call_expr);
-                    arraylist *arg_init_stmts = parameters_init_stmts(method->descriptor);
+                    arraylist *arg_init_stmts = parameters_init_stmts(method->descriptor, test_class);
                     frame_t *frame = frame_new(method, NULL);
                     // act call
                     for(size_t i = 0;i<arg_init_stmts->size;i++) {
                         stmt_t *stmt = arraylist_get(arg_init_stmts, i);
-                        arraylist_add(act_call_expr->args, strdup(stmt->var_decl->name));
+                        var_expr_t *var_expr = stmt->expr->expr->var;
+                        arraylist_add(act_call_expr->args, strdup(var_expr->name));
                         slot_t *slot = get_local(frame, i + 1);
-                        test_field_t *test_field = test_field_new(stmt->var_decl->name, stmt->var_decl->type, stmt->var_decl->full_type);
+                        test_field_t *test_field = test_field_new(var_expr->name, var_expr->type, var_expr->descriptor);
                         slot->test_field = test_field;
                     }
                     stmt_t *act_call_stmt = stmt_new(STMT_EXPR);
@@ -277,6 +197,11 @@ void create_junit_test_class(
                         test_method->act_call = act_call_stmt;
                         test_method->local_var_index = arg_init_stmts->size + 1;
                         test_method->all_ifs = all_ifs;
+                        // todo 因为没有读调用的方法，所以不知道对方的定义，这里统一写死，后续处理
+                        test_method->has_exception = 1;
+                        // if(method->exception_count > 0) {
+                        //     test_method->has_exception = 1;
+                        // }
                         arraylist_add(test_method->annos, "@Test");
                         arraylist_add(test_class->methods, test_method);
                         frame->test_method = test_method;
@@ -594,7 +519,12 @@ void print_test_class(test_class_t *test_class, const char *dest_file_path) {
             char *anno = (char*) arraylist_get(annos, j);
             print_content(dest_file, "%*s%s\n", tabs * 4, "", anno);
         }
-        print_content(dest_file, "%*s%s %s %s() {\n\n", tabs * 4, "", "public", method->return_type, method->name);
+        print_content(dest_file, "%*s%s %s %s() ", tabs * 4, "", "public", method->return_type, method->name);
+        if(method->has_exception == 1) {
+            print_content(dest_file, "throws Exception ");
+        }
+
+        print_content(dest_file, "{\n\n");
         
         // print body...
         arraylist *body = method->body;

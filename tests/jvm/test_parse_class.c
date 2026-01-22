@@ -58,7 +58,7 @@ int junit_test_class_init() {
     const char *dest_path = "/mnt/e/code_new/shanshan-biz-order-app/shanshan-biz-order-app/src/test/java/junit_mock";
     project_t *project = load_project(file, NULL);
     // load class from jdk or jar
-    create_junit_test_class(project, dest_path, "com.shanshan");
+    create_junit_test_class(project, dest_path);
     return SUCCESS;
 }
 

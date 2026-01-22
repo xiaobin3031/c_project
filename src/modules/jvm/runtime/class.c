@@ -112,6 +112,19 @@ class_t *define_class(class_file_t *class_file) {
                         exception_table->start_pc = attr_exception_table->start_pc;
                     }
                     break;
+                }else if(attr->tag == ATTR_EXCEPTIONS) {
+                    u1 *info = attr->info;
+                    method->exception_count = parse_to_u2(info);
+                    u2 offset = 2;
+                    if(method->exception_count > 0) {
+                        method->exceptions = calloc(method->exception_count, sizeof(rt_exception_t));
+                        for(u2 i = 0; i < method->exception_count; i++) {
+                            u2 index = parse_to_u2(info + offset);
+                            cp_class_t *cp_class = get_cp_class(class_file->cp_pools + index);
+                            method->exceptions[i].class_name = get_utf8_copy(class_file->cp_pools + cp_class->name_index);
+                            offset += 2;
+                        }
+                    }
                 }
             }
         }
