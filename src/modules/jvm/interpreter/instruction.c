@@ -1560,65 +1560,79 @@ void exec_instruction(jvm_thread_t *thread) {
                                 char *ptr = call_method->descriptor + 1;
                                 arraylist *args = arraylist_new(2);
                                 char buffer[40];
+                                int vt_argc = arg_count_from_desciptor(ptr);
+                                value_trace_t **vt_args = calloc(vt_argc, sizeof(value_trace_t *));
+                                int arg_index = 0;
                                 while(*ptr && *ptr != ')') {
                                     switch(*ptr) {
-                                        case 'I':
-                                            arraylist_add(args, "anyInt()");
+                                        case 'I': {
+                                            vt_args[arg_index] = vt_string_new("anyInt()");
                                             pop(frame);
                                             break;
-                                        case 'J': 
-                                            arraylist_add(args, "anyLong()");
-                                            pop(frame);
-                                            pop(frame);
-                                            break;
-                                        case 'F': 
-                                            arraylist_add(args, "anyFloat()");
-                                            pop(frame);
-                                            break;
-                                        case 'D': 
-                                            arraylist_add(args, "anyDouble()");
+                                        }
+                                        case 'J': {
+                                            vt_args[arg_index] = vt_string_new("anyLong()");
                                             pop(frame);
                                             pop(frame);
                                             break;
-                                        case 'B': 
-                                            arraylist_add(args, "anyByte()");
+                                        }
+                                        case 'F':  {
+                                            vt_args[arg_index] = vt_string_new("anyFloat()");
                                             pop(frame);
                                             break;
-                                        case 'C': 
-                                            arraylist_add(args, "anyChar()");
+                                        }
+                                        case 'D': {
+                                            vt_args[arg_index] = vt_string_new("anyDouble()");
+                                            pop(frame);
                                             pop(frame);
                                             break;
-                                        case 'S': 
-                                            arraylist_add(args, "anyShort()");
+                                        }
+                                        case 'B': {
+                                            vt_args[arg_index] = vt_string_new("anyByte()");
                                             pop(frame);
                                             break;
-                                        case 'Z': 
-                                            arraylist_add(args, "anyBoolean()");
+                                        }
+                                        case 'C': {
+                                            vt_args[arg_index] = vt_string_new("anyChar()");
                                             pop(frame);
                                             break;
+                                        }
+                                        case 'S': {
+                                            vt_args[arg_index] = vt_string_new("anyShort()");
+                                            pop(frame);
+                                            break;
+                                        }
+                                        case 'Z': {
+                                            vt_args[arg_index] = vt_string_new("anyBoolean()");
+                                            pop(frame);
+                                            break;
+                                        }
                                         case 'L': { 
                                             const char *end = strchr(ptr, ';');
-                                            char *tmp_name = strndup(ptr + 1, end - ptr - 1);
-                                            char *ptr_tmp_name = tmp_name;
-                                            while(*ptr_tmp_name) {
-                                                if(*ptr_tmp_name == '/') *ptr_tmp_name = '.';
-                                                ptr_tmp_name++;
-                                            }
-                                            char *start = end - 1;
-                                            printf("add_import %s\n", tmp_name);
-                                            add_import(frame->test_class, tmp_name);
-                                            while(start > ptr && *start != '/') start--;
-                                            char *simple_type = strndup(start + 1, end - start - 1);
-                                            // 暂时用any
-                                            sprintf(buffer, "any()", simple_type);
-                                            arraylist_add(args, strdup(buffer));
+                                            // char *tmp_name = strndup(ptr + 1, end - ptr - 1);
+                                            // char *ptr_tmp_name = tmp_name;
+                                            // while(*ptr_tmp_name) {
+                                            //     if(*ptr_tmp_name == '/') *ptr_tmp_name = '.';
+                                            //     ptr_tmp_name++;
+                                            // }
+                                            // char *start = end - 1;
+                                            // printf("add_import %s\n", tmp_name);
+                                            // add_import(frame->test_class, tmp_name);
+                                            // while(start > ptr && *start != '/') start--;
+                                            // char *simple_type = strndup(start + 1, end - start - 1);
+                                            // // 暂时用any
+                                            // sprintf(buffer, "any()", simple_type);
+                                            // arraylist_add(args, strdup(buffer));
                                             ptr = end;
+                                            // pop(frame);
+                                            // free(tmp_name);
+                                            vt_args[arg_index] = vt_string_new("any()");
                                             pop(frame);
-                                            free(tmp_name);
                                             break;
                                         }
                                     }
                                     ptr++;
+                                    arg_index++;
                                 }
 
                                 // pop this
@@ -1628,39 +1642,48 @@ void exec_instruction(jvm_thread_t *thread) {
                                 // 判断是否需要创建变量
                                 opcode = codes[frame->pc + offset];
                                 if(call_method->return_slot_count> 0) {
+                                    value_trace_t *vt = NULL;
                                     if(opcode != OPCODE_pop) {
                                         // 有返回值，但不是直接pop，说明新建了变量
                                         if(*ptr == ')') {
+                                            vt = calloc(1, sizeof(value_trace_t));
+                                            vt->kind = VT_INVOKE;
+                                            vt->invoke.method = call_method;
+                                            vt->invoke.argc = vt_argc;
+                                            vt->invoke.args = vt_args;
+                                            vt->invoke.field_name = strdup(match_field->name);
+                                            vt->invoke.must_mock = 1;
                                             ptr++;
-                                            stmt_t *stmt = init_arg_stmt(ptr, frame->test_class, &frame->test_method->local_var_index);
-                                            body_branch_t *branch = calloc(1, sizeof(body_branch_t));
-                                            branch->kind = BODY_BRANCH_STMT;
-                                            branch->stmt = stmt;
-                                            arraylist_add(frame->test_method->branchs, branch);
+                                            // stmt_t *stmt = init_arg_stmt(ptr, frame->test_class, &frame->test_method->local_var_index);
+                                            // body_branch_t *branch = calloc(1, sizeof(body_branch_t));
+                                            // branch->kind = BODY_BRANCH_STMT;
+                                            // branch->stmt = stmt;
+                                            // arraylist_add(frame->test_method->branchs, branch);
 
-                                            // todo 将变量保存到test_method中，后续可能需要设置值
-                                            var_expr_t *expr_init = stmt->expr->expr->var;
-                                            test_field_t *local_var = test_field_new(expr_init->name, expr_init->type, ptr);
-                                            arraylist_add(frame->test_method->test_local_vars, local_var);
+                                            // // todo 将变量保存到test_method中，后续可能需要设置值
+                                            // var_expr_t *expr_init = stmt->expr->expr->var;
+                                            // test_field_t *local_var = test_field_new(expr_init->name, expr_init->type, ptr);
+                                            // arraylist_add(frame->test_method->test_local_vars, local_var);
 
-                                            // mock 方法，返回指定的变量
-                                            mock_method_call_expr_t *expr_mock_mc = calloc(1, sizeof(mock_method_call_expr_t));
-                                            expr_mock_mc->args = args;
-                                            expr_mock_mc->type = MOCK_CALL_RETURN;
-                                            expr_mock_mc->mock_return = expr_init->name;
-                                            expr_mock_mc->field = strdup(match_field->name);
-                                            expr_mock_mc->method = strdup(call_method->name);
-                                            expr_t *expr = expr_new(EXPR_MOCK_METHOD_CALL);
-                                            expr->mock_method_call = expr_mock_mc;
-                                            stmt = stmt_new(STMT_EXPR);
-                                            stmt->expr = expr_stmt_new(expr);
-                                            branch = calloc(1, sizeof(body_branch_t));
-                                            branch->kind = BODY_BRANCH_STMT;
-                                            branch->stmt = stmt;
-                                            arraylist_add(frame->test_method->branchs, branch);
+                                            // // mock 方法，返回指定的变量
+                                            // mock_method_call_expr_t *expr_mock_mc = calloc(1, sizeof(mock_method_call_expr_t));
+                                            // expr_mock_mc->args = args;
+                                            // expr_mock_mc->type = MOCK_CALL_RETURN;
+                                            // expr_mock_mc->mock_return = expr_init->name;
+                                            // expr_mock_mc->field = strdup(match_field->name);
+                                            // expr_mock_mc->method = strdup(call_method->name);
+                                            // expr_t *expr = expr_new(EXPR_MOCK_METHOD_CALL);
+                                            // expr->mock_method_call = expr_mock_mc;
+                                            // stmt = stmt_new(STMT_EXPR);
+                                            // stmt->expr = expr_stmt_new(expr);
+                                            // branch = calloc(1, sizeof(body_branch_t));
+                                            // branch->kind = BODY_BRANCH_STMT;
+                                            // branch->stmt = stmt;
+                                            // arraylist_add(frame->test_method->branchs, branch);
                                         }
                                     }
-                                    for(int i = 0; i < call_method->return_slot_count; i++) {
+                                    push(frame)->vt = vt;
+                                    for(int i = 0; i < call_method->return_slot_count - 1; i++) {
                                         push(frame);
                                     }
                                 }

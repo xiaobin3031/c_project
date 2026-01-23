@@ -73,6 +73,7 @@ struct value_trace_t {
             // 调用了哪个变量的方法
             char *field_name;
             int call_from_test_field;
+            int must_mock;
         } invoke;
 
         // 比较if

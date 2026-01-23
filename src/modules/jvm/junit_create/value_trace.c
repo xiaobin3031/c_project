@@ -286,6 +286,7 @@ void value_trace_back_code(value_trace_t *vt, test_method_t *test_method) {
                 }
                 else {
                     printf("unknown back code, invoke: %s\n", method_name);
+                    abort();
                 }
 
                 free(method_name);
