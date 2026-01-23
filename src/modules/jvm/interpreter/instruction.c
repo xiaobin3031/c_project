@@ -188,7 +188,7 @@ static void pop_stack(frame_t *frame, u2 index) {
     local->bits = stack->bits;
     local->ref = stack->ref;
     local->test_field = stack->test_field;
-    stack->vt = local->vt;
+    local->vt = stack->vt;
 }
 
 /**
@@ -1240,6 +1240,7 @@ void exec_instruction(jvm_thread_t *thread) {
                 }else{
                     // 已经结束了，返回
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1257,6 +1258,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1272,6 +1274,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1287,6 +1290,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1302,6 +1306,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1317,6 +1322,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1335,6 +1341,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1351,6 +1358,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1367,6 +1375,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1383,6 +1392,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1399,6 +1409,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1415,6 +1426,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1431,6 +1443,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -1447,6 +1460,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -2017,8 +2031,8 @@ void exec_instruction(jvm_thread_t *thread) {
                             abort();
             }
             case OPCODE_ireturn: {   // 0xac,       // 172 
-                pop_frame(thread);
                 push_int(thread->current_frame, pop_int(frame));
+                pop_frame(thread);
                 return;
             }
             case OPCODE_lreturn: {   // 0xad,       // 173 
@@ -2066,6 +2080,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
@@ -2083,6 +2098,7 @@ void exec_instruction(jvm_thread_t *thread) {
                     frame->pc += 3;
                 }else{
                     frame->test_method->short_circuit = 1;
+                    pop_frame(thread);
                     return;
                 }
                 ift->get_pcs[ift->taken] = frame->pc;
