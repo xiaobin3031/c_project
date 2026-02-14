@@ -1,6 +1,6 @@
 #include "junit.h"
-#include "expr.h"
-#include "stmt.h"
+#include "../ast/expr.h"
+#include "../ast/stmt.h"
 #include "../project/project.h"
 #include "../classfile/class_reader.h"
 #include "../../../core/list/arraylist.h"
@@ -11,8 +11,6 @@
 #include "../interpreter/interpreter.h"
 #include "../utils/slots.h"
 #include "../vm/classload.h"
-#include "stmt.h"
-#include "expr.h"
 #include "../project/project.h"
 #include <string.h>
 #include <unistd.h>

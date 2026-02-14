@@ -2,7 +2,7 @@
 
 #include "../../../core/list/arraylist.h"
 #include "../utils/bytes.h"
-#include "stmt.h"
+#include "../ast/stmt.h"
 #include "../project/project.h"
 
 typedef struct test_method_t test_method_t;

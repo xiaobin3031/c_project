@@ -1,6 +1,6 @@
 #include "junit.h"
-#include "expr.h"
-#include "stmt.h"
+#include "../ast/expr.h"
+#include "../ast/stmt.h"
 #include "../utils/slots.h"
 #include "../../../core/list/arraylist.h"
 #include <string.h>
